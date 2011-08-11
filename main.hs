@@ -26,12 +26,12 @@ plotAsString::(Integral a)=>[(a,a)]->(a,a)->String
 plotAsString locs (ans,_) = let xs = map fst locs
                                 ys = map snd locs
                                 locsmap = M.fromList (zip locs [0..])
-                                bufsize=10
+                                bufsize=2
                                 min' = ((\x -> x-bufsize) . minimum)
                                 max' = ((\x -> x+bufsize) . maximum)
                                 (bmin@(x0,y0),bmax@(x1,y1)) = ((min' xs,min' ys),(max' xs,max' ys))
                                 plotString = foldl (\curStr newRowId -> (foldl (\ccStr newColId -> (ccStr++(case (M.lookup (newRowId,newColId) locsmap) of
-                                                                                                              (Just (id,_)) -> (if id==ans then ("|" ++ (show id) ++ "|") 
+                                                                                                              (Just id) -> (if id==ans then ("|" ++ (show id) ++ "|") 
                                                                                                                                 else ("." ++ (show id) ++ "."))
                                                                                                               (Nothing) -> " . ")))
                                                                             curStr [y0..y1]) ++ "\n") "" [x0..x1] 
