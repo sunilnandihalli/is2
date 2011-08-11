@@ -21,21 +21,32 @@ cost locs from= sum $ map (\x->dist from x) locs
 solve::Integral a=>a->[(a,a)]->(a,a)
 solve n locs = L.minimumBy (\x y -> (compare (snd x) (snd y))) (zip (map fromIntegral [0..]) (map (cost locs) locs))
 
+boundingBox::(Num a,Ord a)=>[(a,a)]->((a,a),(a,a))
+boundingBox locs = let bufsize=2
+                       xs = map fst locs
+                       ys = map snd locs
+                       min' = ((\x -> x-bufsize) . minimum)
+                       max' = ((\x -> x+bufsize) . maximum)
+                   in ((min' xs,min' ys),(max' xs,max' ys))
+                                
+vornoiGraph::(Num a,Ord a,Integral b)=>[(a,a)]->[(b,b)]
+vornoiGraph locs = let locsToId = M.fromList (zip locs [0..])
+                       idToLocs = M.fromList (zip [0..] locs)
+                       xSortedLocs = L.sortBy (\x y->compare (fst x) (fst y)) locs
+                   in [(1,1)]
+
 
 plotAsString::(Integral a)=>[(a,a)]->(a,a)->String
-plotAsString locs (ans,_) = let xs = map fst locs
-                                ys = map snd locs
+plotAsString locs (ans,_) = let (bmin@(x0,y0),bmax@(x1,y1)) = boundingBox locs
                                 locsmap = M.fromList (zip locs [0..])
-                                bufsize=2
-                                min' = ((\x -> x-bufsize) . minimum)
-                                max' = ((\x -> x+bufsize) . maximum)
-                                (bmin@(x0,y0),bmax@(x1,y1)) = ((min' xs,min' ys),(max' xs,max' ys))
-                                plotString = foldl (\curStr newRowId -> (foldl (\ccStr newColId -> (ccStr++(case (M.lookup (newRowId,newColId) locsmap) of
-                                                                                                              (Just id) -> (if id==ans then ("|" ++ (show id) ++ "|") 
-                                                                                                                                else ("." ++ (show id) ++ "."))
-                                                                                                              (Nothing) -> " . ")))
-                                                                            curStr [y0..y1]) ++ "\n") "" [x0..x1] 
-                            in plotString
+                            in foldl (\curStr newRowId -> 
+                                          foldl (\ccStr newColId -> 
+                                                      ccStr++(case M.lookup (newRowId,newColId) locsmap of
+                                                                Just id -> if id==ans then "|" ++ (show id) ++ "|"
+                                                                           else " " ++ (show id) ++ " "
+                                                                Nothing -> " . "))
+                                           curStr [y0..y1] ++ "\n") "" [x0..x1] 
+                            
 
 tuplify2 :: [a] -> (a,a)
 tuplify2 [x,y] = (x,y)
