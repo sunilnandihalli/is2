@@ -28,12 +28,17 @@ boundingBox locs = let bufsize=2
                        min' = ((\x -> x-bufsize) . minimum)
                        max' = ((\x -> x+bufsize) . maximum)
                    in ((min' xs,min' ys),(max' xs,max' ys))
-                                
+                   
+addNode::(Num a,Ord a,Integral b)=>M.Map (a,a) b->([(a,a)],[(b,b)])->(a,a)->([(a,a)],[(b,b)])
+addNode locsToId (beachFront,graphEdges) newPoint@(x,y) = (beachFront,graphEdges)
+             
 vornoiGraph::(Num a,Ord a,Integral b)=>[(a,a)]->[(b,b)]
 vornoiGraph locs = let locsToId = M.fromList (zip locs [0..])
                        idToLocs = M.fromList (zip [0..] locs)
-                       xSortedLocs = L.sortBy (\x y->compare (fst x) (fst y)) locs
-                   in [(1,1)]
+                       xSortedLocs = L.sortBy (\(x,_) (y,_)->compare x y) locs
+                       (beachFront,graphEdges) = L.foldl' (addNode locsToId) ([],[]) xSortedLocs
+                   in graphEdges
+
 
 
 plotAsString::(Integral a)=>[(a,a)]->(a,a)->String
