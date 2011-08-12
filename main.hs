@@ -22,7 +22,7 @@ solve::Integral a=>a->[(a,a)]->(a,a)
 solve n locs = L.minimumBy (\x y -> (compare (snd x) (snd y))) (zip (map fromIntegral [0..]) (map (cost locs) locs))
 
 boundingBox::(Num a,Ord a)=>[(a,a)]->((a,a),(a,a))
-boundingBox locs = let bufsize=2
+boundingBox locs = let bufsize=1
                        xs = map fst locs
                        ys = map snd locs
                        min' = ((\x -> x-bufsize) . minimum)
@@ -30,22 +30,31 @@ boundingBox locs = let bufsize=2
                    in ((min' xs,min' ys),(max' xs,max' ys))
 
 getEdge::(Num a,Ord a,Integral b)=>M.Map (a,a) b->(a,a)->(a,a)->(b,b)
-getEdge locsToId p1 p2 = let Just id1 = M.lookup p1 locsToId 
+getEdge locsToId p1 p2 = let Just id1 = M.lookup p1 locsToId
                              Just id2 = M.lookup p2 locsToId
                          in (id1,id2)
 
 beachFrontIntersects::(Num a,Ord a)=>[(a,a)]->(a,a)->a
 beachFrontIntersects beachFront newNode = fst newNode
+
+advanceSweepLineTo::(Num a)=>((M.Map (a,a) (a,a)),a)->a->((M.Map (a,a) (a,a)),a)
+advanceSweepLineTo front newSweepLineLocation = front
+
+addNewPointLocatedAtTheFrontToBeachFront::(Num a)=>(((M.Map (a,a) (a,a)),a),[(b,b)])->(a,a)->(((M.Map (a,a) (a,a)),a),[(b,b)])
+addNewPointLocatedAtTheFrontToBeachFront (beachFront,graphEdges) newPoint = (beachFront,graphEdges)
                    
-addNode::(Num a,Ord a,Integral b)=>M.Map (a,a) b->([((a,a),(a,a))],[(b,b)])->(a,a)->([((a,a),(a,a))],[(b,b)])
-addNode locsToId (beachFront,graphEdges) newPoint@(x,y) = (beachFront,graphEdges)
+addNode::(Num a,Ord a,Integral b)=>M.Map (a,a) b->(((M.Map (a,a) (a,a)),a),[(b,b)])->(a,a)->(((M.Map (a,a) (a,a)),a),[(b,b)])
+addNode locsToId (beachFront,graphEdges) newPoint@(x,_) = let newBeachFront = advanceSweepLineTo beachFront x
+                                                          in addNewPointLocatedAtTheFrontToBeachFront (newBeachFront,graphEdges) newPoint
+
              
 vornoiGraph::(Num a,Ord a,Integral b)=>[(a,a)]->[(b,b)]
 vornoiGraph locs = let locsToId = M.fromList (zip locs [0..])
                        idToLocs = M.fromList (zip [0..] locs)
-                       xSortedLocs = L.sort locs
-                       (beachFront,graphEdges) = L.foldl' (addNode locsToId) ([],[]) xSortedLocs
+                       xSortedLocs@((xmin,_):_) = L.sort locs
+                       (beachFront,graphEdges) = L.foldl' (addNode locsToId) ((M.empty,xmin),[]) xSortedLocs
                    in graphEdges
+
 
 plotAsString::(Integral a)=>[(a,a)]->(a,a)->String
 plotAsString locs (ansPosId,lowestCost) = let ((x0,y0),(x1,y1)) = boundingBox locs
