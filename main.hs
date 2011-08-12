@@ -37,8 +37,19 @@ getEdge locsToId p1 p2 = let Just id1 = M.lookup p1 locsToId
 beachFrontIntersects::(Num a,Ord a)=>[(a,a)]->(a,a)->a
 beachFrontIntersects beachFront newNode = fst newNode
 
+expandToAdvance::(Num a)=>((M.Map (a,a) (a,a)),a)->a->((M.Map (a,a) (a,a)),a)
+expandToAdvance (rangeToOpenTrapeziaMap,curSweepLoc) newSweepLoc = (rangeToOpenTrapeziaMap,newSweepLoc)
+
+deleteOutOfRangeTrapezia::(Num a)=>(M.Map (a,a) (a,a))->(a,a)->(M.Map (a,a) (a,a))
+deleteOutOfRangeTrapezia originalTrapeziaMap trimRange@(y1,y2) = originalTrapeziaMap
+
 advanceSweepLineTo::(Num a)=>((M.Map (a,a) (a,a)),a)->a->((M.Map (a,a) (a,a)),a)
-advanceSweepLineTo front newSweepLineLocation = front
+advanceSweepLineTo front@(rangeToOpenTrapeziaMap,curSweepLineLocation) newSweepLineLocation = let delta = newSweepLineLocation - curSweepLineLocation
+                                                                                                  (expandedTrapezia,_) = expandToAdvance front newSweepLineLocation
+                                                                                                  ((ymin,_),_) = M.findMin rangeToOpenTrapeziaMap
+                                                                                                  ((_,ymax),_) = M.findMax rangeToOpenTrapeziaMap
+                                                                                                  trimmedTrapezia =  deleteOutOfRangeTrapezia expandedTrapezia (ymin,ymax)
+                                                                                               in (trimmedTrapezia,newSweepLineLocation)
 
 addNewPointLocatedAtTheFrontToBeachFront::(Num a)=>(((M.Map (a,a) (a,a)),a),[(b,b)])->(a,a)->(((M.Map (a,a) (a,a)),a),[(b,b)])
 addNewPointLocatedAtTheFrontToBeachFront (beachFront,graphEdges) newPoint = (beachFront,graphEdges)
