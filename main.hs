@@ -28,29 +28,35 @@ boundingBox locs = let bufsize=2
                        min' = ((\x -> x-bufsize) . minimum)
                        max' = ((\x -> x+bufsize) . maximum)
                    in ((min' xs,min' ys),(max' xs,max' ys))
+
+getEdge::(Num a,Ord a,Integral b)=>M.Map (a,a) b->(a,a)->(a,a)->(b,b)
+getEdge locsToId p1 p2 = let Just id1 = M.lookup p1 locsToId 
+                             Just id2 = M.lookup p2 locsToId
+                         in (id1,id2)
+
+beachFrontIntersects::(Num a,Ord a)=>[(a,a)]->(a,a)->a
+beachFrontIntersects beachFront newNode = fst newNode
                    
-addNode::(Num a,Ord a,Integral b)=>M.Map (a,a) b->([(a,a)],[(b,b)])->(a,a)->([(a,a)],[(b,b)])
+addNode::(Num a,Ord a,Integral b)=>M.Map (a,a) b->([((a,a),(a,a))],[(b,b)])->(a,a)->([((a,a),(a,a))],[(b,b)])
 addNode locsToId (beachFront,graphEdges) newPoint@(x,y) = (beachFront,graphEdges)
              
 vornoiGraph::(Num a,Ord a,Integral b)=>[(a,a)]->[(b,b)]
 vornoiGraph locs = let locsToId = M.fromList (zip locs [0..])
                        idToLocs = M.fromList (zip [0..] locs)
-                       xSortedLocs = L.sortBy (\(x,_) (y,_)->compare x y) locs
+                       xSortedLocs = L.sort locs
                        (beachFront,graphEdges) = L.foldl' (addNode locsToId) ([],[]) xSortedLocs
                    in graphEdges
 
-
-
 plotAsString::(Integral a)=>[(a,a)]->(a,a)->String
-plotAsString locs (ans,_) = let (bmin@(x0,y0),bmax@(x1,y1)) = boundingBox locs
-                                locsmap = M.fromList (zip locs [0..])
-                            in foldl (\curStr newRowId -> 
-                                          foldl (\ccStr newColId -> 
-                                                      ccStr++(case M.lookup (newRowId,newColId) locsmap of
-                                                                Just id -> if id==ans then "|" ++ (show id) ++ "|"
-                                                                           else " " ++ (show id) ++ " "
-                                                                Nothing -> " . "))
-                                           curStr [y0..y1] ++ "\n") "" [x0..x1] 
+plotAsString locs (ansPosId,lowestCost) = let ((x0,y0),(x1,y1)) = boundingBox locs
+                                              locsmap = M.fromList (zip locs [0..])
+                                          in L.foldl' (\curStr newRowId -> 
+                                                        L.foldl' (\ccStr newColId -> 
+                                                                      ccStr++(case M.lookup (newRowId,newColId) locsmap of
+                                                                                Just id -> if id==ansPosId then "|" ++ (show id) ++ "|"
+                                                                                           else " " ++ (show id) ++ " "
+                                                                                Nothing -> " . "))
+                                                        curStr [y0..y1] ++ "\n") ("cost : "++show lowestCost++"\n") [x0..x1] 
                             
 
 tuplify2 :: [a] -> (a,a)
