@@ -40,8 +40,21 @@ beachFrontIntersects beachFront newNode = fst newNode
 expandToAdvance::(Num a)=>((M.Map (a,a) (a,a)),a)->a->((M.Map (a,a) (a,a)),a)
 expandToAdvance (rangeToOpenTrapeziaMap,curSweepLoc) newSweepLoc = (rangeToOpenTrapeziaMap,newSweepLoc)
 
+
+
 deleteOutOfRangeTrapezia::(Num a)=>(M.Map (a,a) (a,a))->(a,a)->(M.Map (a,a) (a,a))
-deleteOutOfRangeTrapezia originalTrapeziaMap trimRange@(y1,y2) = originalTrapeziaMap
+deleteOutOfRangeTrapezia originalTrapeziaMap trimRange@(ymin,ymax) = let Just (((ymin0,ymin1),vmin),restMin) = M.minViewWithKey originalTrapeziaMap
+                                                                         Just (((ymax0,ymax1),vmax),restMax) = M.maxViewWithKey originalTrapeziaMap
+                                                                     in if (ymin0<ymin) 
+                                                                        then deleteOutOfRangeTrapezia (if (ymin1>ymin) 
+                                                                                                       then M.insert (ymin,ymin1) vmin restMin 
+                                                                                                       else restMin) trimRange 
+                                                                        else 
+                                                                            if (ymax1>ymax) 
+                                                                            then deleteOutOfRangeTrapezia (if (ymax0<ymax) 
+                                                                                                           then M.insert (ymax0,ymax) vmax restMax 
+                                                                                                           else restMax) trimRange
+                                                                            else originalTrapeziaMap                 
 
 advanceSweepLineTo::(Num a)=>((M.Map (a,a) (a,a)),a)->a->((M.Map (a,a) (a,a)),a)
 advanceSweepLineTo front@(rangeToOpenTrapeziaMap,curSweepLineLocation) newSweepLineLocation = let delta = newSweepLineLocation - curSweepLineLocation
