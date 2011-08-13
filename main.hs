@@ -37,12 +37,10 @@ getEdge locsToId p1 p2 = let Just id1 = M.lookup p1 locsToId
 beachFrontIntersects::(Num a,Ord a)=>[(a,a)]->(a,a)->a
 beachFrontIntersects beachFront newNode = fst newNode
 
-expandToAdvance::(Num a)=>((M.Map (a,a) (a,a)),a)->a->((M.Map (a,a) (a,a)),a)
+expandToAdvance::(Num a,Ord a)=>((M.Map (a,a) (a,a)),a)->a->((M.Map (a,a) (a,a)),a)
 expandToAdvance (rangeToOpenTrapeziaMap,curSweepLoc) newSweepLoc = (rangeToOpenTrapeziaMap,newSweepLoc)
 
-
-
-deleteOutOfRangeTrapezia::(Num a)=>(M.Map (a,a) (a,a))->(a,a)->(M.Map (a,a) (a,a))
+deleteOutOfRangeTrapezia::(Num a,Ord a)=>(M.Map (a,a) (a,a))->(a,a)->(M.Map (a,a) (a,a))
 deleteOutOfRangeTrapezia originalTrapeziaMap trimRange@(ymin,ymax) = let Just (((ymin0,ymin1),vmin),restMin) = M.minViewWithKey originalTrapeziaMap
                                                                          Just (((ymax0,ymax1),vmax),restMax) = M.maxViewWithKey originalTrapeziaMap
                                                                      in if (ymin0<ymin) 
@@ -56,7 +54,7 @@ deleteOutOfRangeTrapezia originalTrapeziaMap trimRange@(ymin,ymax) = let Just ((
                                                                                                            else restMax) trimRange
                                                                             else originalTrapeziaMap                 
 
-advanceSweepLineTo::(Num a)=>((M.Map (a,a) (a,a)),a)->a->((M.Map (a,a) (a,a)),a)
+advanceSweepLineTo::(Num a,Ord a)=>((M.Map (a,a) (a,a)),a)->a->((M.Map (a,a) (a,a)),a)
 advanceSweepLineTo front@(rangeToOpenTrapeziaMap,curSweepLineLocation) newSweepLineLocation = let delta = newSweepLineLocation - curSweepLineLocation
                                                                                                   (expandedTrapezia,_) = expandToAdvance front newSweepLineLocation
                                                                                                   ((ymin,_),_) = M.findMin rangeToOpenTrapeziaMap
