@@ -90,6 +90,18 @@ advanceSweepLineTo front@(rangeToOpenTrapeziaMap,curSweepLineLocation) newSweepL
                                                                                                   trimmedTrapezia =  deleteOutOfRangeTrapezia expandedTrapezia (ymin,ymax)
                                                                                                in (trimmedTrapezia,newSweepLineLocation)
 
+findParabolaX::(Fractional a,Num a,Ord a)=>(a,a)->a->a->a
+findParabolaX (x,y) s y' 
+    | dy<=hsx = x+hsx
+    | y' < y = s-dy
+    | y' > y = s+dy 
+ where dy = abs(y'-y)
+       hsx = (s-x)/2
+
+masks::(Num a)=>((a,a),(a,a))->(a,a)->(Maybe (a,a),Bool)
+masks ((y1,y2),(x,y)) (nx,ny) 
+      | ny == y = (Nothing,True)
+
 addNewPointLocatedAtTheFrontToBeachFront::(Num a)=>(((M.Map (a,a) (a,a)),a),[(b,b)])->(a,a)->(((M.Map (a,a) (a,a)),a),[(b,b)])
 addNewPointLocatedAtTheFrontToBeachFront (beachFront,graphEdges) newPoint = (beachFront,graphEdges)
                    
