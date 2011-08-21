@@ -1,4 +1,6 @@
+{-|
 {-# OPTIONS_GHC -O2 #-}
+|-}
 
 module Main where
 import qualified Data.List as L
@@ -216,6 +218,7 @@ main =
            n = read nstr
            locs = take (fromIntegral n) $ map (tuplify2 . (\x-> map stringToRatio $ words x)) locPairStrs
            answer = solve n locs
+       putStrLn $ show $ vornoiGraph locs
        putStrLn $ plotAsString locs answer
 
        
