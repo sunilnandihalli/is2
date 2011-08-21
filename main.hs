@@ -1,8 +1,11 @@
+{-# OPTIONS_GHC -O2 #-}
+
 module Main where
 import qualified Data.List as L
 import qualified Data.HashTable as H
 import qualified Data.Map as M
 import qualified Data.Ratio as R
+import qualified Data.Set as S
 import Data.Ratio
 
 stringToInteger::String->Integer
@@ -38,6 +41,7 @@ getEdge::(Integral a,Ord a,Integral b)=>M.Map (Ratio a,Ratio a) b->(Ratio a,Rati
 getEdge locsToId p1 p2 = let Just id1 = M.lookup p1 locsToId
                              Just id2 = M.lookup p2 locsToId
                          in (id1,id2)
+
 {-|
 beachFrontIntersects::(Integral a,Ord a)=>[(Ratio a,Ratio a)]->(Ratio a,Ratio a)->a
 beachFrontIntersects beachFront newNode = fst newNode
@@ -72,8 +76,7 @@ expandToAdvance (rangeToOpenTrapeziaMap,s) s' = let lst = mconvert $ M.toAscList
                                                     y' = M.fromDistinctAscList $ map (\x->newYLocation x s') lst
                                                 in (M.mapKeysMonotonic (\(y1,y2) ->let (Just v1) = M.lookup y1 y'  
                                                                                        (Just v2) = M.lookup y2 y'
-                                                                                   in (v1,v2))
-                                                    rangeToOpenTrapeziaMap, s' )
+                                                                                   in (v1,v2)) rangeToOpenTrapeziaMap,s')
 
 deleteOutOfRangeTrapezia::(Num a,Ord a)=>(M.Map (a,a) (a,a))->(a,a)->(M.Map (a,a) (a,a))
 deleteOutOfRangeTrapezia originalTrapeziaMap trimRange@(ymin,ymax) = let Just (((ymin0,ymin1),vmin),restMin) = M.minViewWithKey originalTrapeziaMap
@@ -114,15 +117,72 @@ masks::(Num a)=>((a,a),(a,a))->(a,a)->(Maybe (a,a),Bool)
 masks ((y1,y2),(x,y)) (nx,ny) 
       | ny == y = (Nothing,True)
 
+pairPartition::[b]->[(b,b)]
+pairPartition (x1:x2:xs) = (x1,x2):(pairPartition xs)
+pairPartition _ = []
 
-addNewPointLocatedAtTheFrontToBeachFront::(Num a)=>(((M.Map (a,a) (a,a)),a),[(b,b)])->(a,a)->(((M.Map (a,a) (a,a)),a),[(b,b)])
-addNewPointLocatedAtTheFrontToBeachFront (beachFront,graphEdges) newPoint@(x,y) = (beachFront,graphEdges)
-                   
+revPairPartition::[b]->[(b,b)]
+revPairPartition (x1:x2:xs) = (x2,x1):(revPairPartition xs)
+revPairPartition _ = []
+
+addNewPointLocatedAtTheFrontToBeachFront::(Num a)=>M.Map (a,a) b->(((M.Map (a,a) (a,a)),a),[(b,b)])->(a,a)->(((M.Map (a,a) (a,a)),a),[(b,b)])
+addNewPointLocatedAtTheFrontToBeachFront loc2Id (beachFront,graphEdges) (nx,ny) = (let flatten xs = L.foldl' (\cur (x1,x2) -> x1:x2:cur) [] (reverse xs)
+                                                                                       toDecendingList = reverse . S.toAscList 
+                                                                                       ySet = S.fromAscList $ flatten $ M.keys beachFront
+                                                                                       (prevSet@(prevY:_),foundExactY,postSet@(postY:_)) = S.splitMember ny ySet                  
+                                                                                       prevList = toDecendingList prevSet
+                                                                                       postList = S.toAscList postSet
+                                                                                       (xPy,xMy) = (nx+ny,nx-ny)
+                                                                                       nid = loc2Id M.!(nx,ny)            
+                                                                                       pairsToBeDeletedOrModified = if foundExactY 
+                                                                                                                    then ((takeWhile (\w@(_,y2)->
+                                                                                                                                      let x2 = findParabolaX 
+                                                                                                                                               (beachFront M.! w) nx y2
+                                                                                                                                      in x2-y2<xMy)
+                                                                                                                          $ revPairPartition (ny:prevList)) ++ 
+                                                                                                                          (takeWhile (\w@(y1,_)->
+                                                                                                                                      let x1 = findParabolaX 
+                                                                                                                                               (beachFront M.! w) nx y1
+                                                                                                                                      in x1+y1<xPy)
+                                                                                                                          $ pairPartition (ny:postList)))
+                                                                                                                    else ((takeWhile (\w@(_,y2)->
+                                                                                                                                      let x2 = findParabolaX 
+                                                                                                                                               (beachFront M.! w) nx y2
+                                                                                                                                      in x2-y2<xMy)
+                                                                                                                          $ revPairPartition prevList) ++ (prevY,postY):
+                                                                                                                          (takeWhile (\w@(y1,_)->
+                                                                                                                                      let x1 = findParabolaX 
+                                                                                                                                               (beachFront M.! w) nx y1
+                                                                                                                                      in x1+y1<xPy)
+                                                                                                                          $ pairPartition postList))
+                                                                                       (bf',ge') = (L.foldl' (\(bf,ge) k@(y1,y2) ->
+                                                                                                                  let v = bf M.! k
+                                                                                                                      bf' = M.delete k bf
+                                                                                                                      id = loc2Id M.! v
+                                                                                                                  in (bf',(nid,id)))
+                                                                                                    (beachFront,graphEdges) pairsToBeDeletedOrModified)
+                                                                                       bf'' = let h@(hy,_)=head pairsToBeDeletedOrModified
+                                                                                                  hParabola@(hpx,hpy) = beachFront M.! h
+                                                                                                  hx = findParabolaX hParabola nx hy
+                                                                                              in if hx-hy<xMy 
+                                                                                                 then M.insert (hy,if hpx-hpy>xMy 
+                                                                                                                   then (hpy+ny)/2
+                                                                                                                   else ny-(nx-hpx)/2) hParabola bf'
+                                                                                                 else bf'
+                                                                                       bf'''= let l@(_,ly) = last pairsToBeDeletedOrModified
+                                                                                                  lParabola@(lpx,lpy) = beachFront M.! l
+                                                                                                  lx = findParabolaX lParabola nx ly
+                                                                                              in if lx+ly>xPy
+                                                                                                 then M.insert (if lpx+lpy>xPy
+                                                                                                                then (lpy+ny)/2
+                                                                                                                else ny+(nx-lpx)/2,ly) lParabola bf''
+                                                                                                 else bf''
+                                                                                 in (bf''',ge'))     
+                                                                                   
 addNode::(Integral a,Ord a,Integral b)=>M.Map (Ratio a,Ratio a) b->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])
        ->(Ratio a,Ratio a)->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])
 addNode locsToId (beachFront,graphEdges) newPoint@(x,_) = let newBeachFront = advanceSweepLineTo beachFront x
-                                                          in addNewPointLocatedAtTheFrontToBeachFront (newBeachFront,graphEdges) newPoint
-
+                                                          in addNewPointLocatedAtTheFrontToBeachFront locsToId (newBeachFront,graphEdges) newPoint
              
 vornoiGraph::(Integral a,Ord a,Integral b)=>[(Ratio a,Ratio a)]->[(b,b)]
 vornoiGraph locs = let locsToId = M.fromList (zip locs [0..])
