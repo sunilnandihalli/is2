@@ -98,7 +98,7 @@ advanceSweepLineTo::(Integral a,Ord a)=>((M.Map (Ratio a,Ratio a) (Ratio a,Ratio
 advanceSweepLineTo front@(rangeToOpenTrapeziaMap,curSweepLineLocation) newSweepLineLocation = let delta = newSweepLineLocation - curSweepLineLocation
                                                                                                   (expandedTrapezia',_) = expandToAdvance front newSweepLineLocation
                                                                                                   expandedTrapezia = trace (" expandedTrapezia : "++show expandedTrapezia') 
-                                                                                                                     $ expandedTrapezia 
+                                                                                                                     $ expandedTrapezia' 
                                                                                                   ((ymin,_),_) = M.findMin rangeToOpenTrapeziaMap
                                                                                                   ((_,ymax),_) = M.findMax rangeToOpenTrapeziaMap
                                                                                                   trimmedTrapezia =  deleteOutOfRangeTrapezia expandedTrapezia (ymin,ymax)
