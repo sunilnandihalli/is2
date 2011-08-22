@@ -130,18 +130,20 @@ revPairPartition::[b]->[(b,b)]
 revPairPartition (x1:x2:xs) = (x2,x1):(revPairPartition xs)
 revPairPartition _ = []
 
-addNewPointLocatedAtTheFrontToBeachFront::(Integral a)=>M.Map (Ratio a,Ratio a) b->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])->
+addNewPointLocatedAtTheFrontToBeachFront::(Show a,Show b,Integral a)=>M.Map (Ratio a,Ratio a) b->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])->
                                           (Ratio a,Ratio a)->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])
+addNewPointLocatedAtTheFrontToBeachFront a b c | trace (" loc2Id : "++show a++"\n (bf,ge) : "++show b++"\n newPoint : "++show c) False = undefined
 addNewPointLocatedAtTheFrontToBeachFront loc2Id (beachFront,graphEdges) (nx,ny) = (let flatten xs = L.foldl' (\cur (x1,x2) -> x1:x2:cur) [] (reverse xs)
                                                                                        (parabolas,frontLoc) = beachFront
                                                                                        toDecendingList = reverse . S.toAscList 
                                                                                        ySet = S.fromAscList $ flatten $ M.keys parabolas
-                                                                                       (prevSet,foundExactY,postSet) = S.splitMember ny ySet
-                                                                                       [prevY,postY] = [S.findMin xx | xx<-[prevSet,postSet]]
+                                                                                       (prevSet,foundExactY,postSet) = trace (" ySet : "++ show ySet) $ S.splitMember ny ySet
+                                                                                       [prevY,postY] = trace ("prevSet : "++ show prevSet)
+                                                                                                       $ [S.findMin xx | xx<-[prevSet,postSet]]
                                                                                        prevList = toDecendingList prevSet
                                                                                        postList = S.toAscList postSet
                                                                                        (xPy,xMy) = (nx+ny,nx-ny)
-                                                                                       nid = loc2Id M.!(nx,ny)            
+                                                                                       nid = trace "here" $ loc2Id M.!(nx,ny)            
                                                                                        pairsToBeDeletedOrModified = if foundExactY 
                                                                                                                     then ((takeWhile (\w@(_,y2)->
                                                                                                                                       let x2 = findParabolaX 
@@ -189,7 +191,8 @@ addNewPointLocatedAtTheFrontToBeachFront loc2Id (beachFront,graphEdges) (nx,ny) 
                                                                                    
 addNode::(Integral a,Ord a,Integral b)=>M.Map (Ratio a,Ratio a) b->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])
        ->(Ratio a,Ratio a)->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])
-addNode locsToId (beachFront,graphEdges) newPoint@(x,_) = let newBeachFront = advanceSweepLineTo beachFront x
+addNode locsToId (beachFront,graphEdges) newPoint@(x,_) = let newBeachFront = trace (" beachFront : "++show beachFront++"\n graphEdges : "++show graphEdges) $
+                                                                              advanceSweepLineTo beachFront x
                                                           in addNewPointLocatedAtTheFrontToBeachFront locsToId (newBeachFront,graphEdges) newPoint
              
 vornoiGraph::(Integral a,Ord a,Integral b)=>[(Ratio a,Ratio a)]->[(b,b)]
