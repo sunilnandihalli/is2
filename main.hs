@@ -116,6 +116,11 @@ revPairPartition::[b]->[(b,b)]
 revPairPartition (x1:x2:xs) = (x2,x1):(revPairPartition xs)
 revPairPartition _ = []
 
+(|!|)::(Ord k,Show k,Show v)=>M.Map k v->k->v
+m |!| k = case M.lookup k m of
+            Just v -> v
+            Nothing -> error (" map : "++show m++" k : "++show k)
+
 addNewPointLocatedAtTheFrontToBeachFront::(Show a,Show b,Integral a)=>M.Map (Ratio a,Ratio a) b->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])->
                                           (Ratio a,Ratio a)->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])
 addNewPointLocatedAtTheFrontToBeachFront a b c | trace (" ---addNewPointToBeachFront---\n (bf,ge) : "++show b++"\n newPoint : "++show c) False = undefined
@@ -123,43 +128,46 @@ addNewPointLocatedAtTheFrontToBeachFront loc2Id (beachFront,graphEdges) (nx,ny) 
                                                                                        (parabolas,frontLoc) = beachFront
                                                                                        toDecendingList = reverse . S.toAscList 
                                                                                        ySet = S.fromAscList $ flatten $ M.keys parabolas
-                                                                                       (prevSet,foundExactY,postSet) = S.splitMember ny ySet
-                                                                                       [prevY,postY] = [S.findMin xx | xx<-[prevSet,postSet]]
-                                                                                       prevList = toDecendingList prevSet
-                                                                                       postList = S.toAscList postSet
+                                                                                       (prevSet,foundExactY,postSet) = trace (" ySet : "++show ySet) S.splitMember ny ySet
+                                                                                       prevList@(prevY:_) = toDecendingList prevSet
+                                                                                       postList@(postY:_) = S.toAscList postSet
                                                                                        (xPy,xMy) = (nx+ny,nx-ny)
-                                                                                       nid =  loc2Id M.!(nx,ny)            
+                                                                                       nid' =  trace (" loc2Id : "++ show loc2Id++"\n parabolas : "++show parabolas) $
+                                                                                               loc2Id |!| (nx,ny)        
+                                                                                       nid = trace (" nid : "++show nid'++"\npr,fy,po : "++show (prevList,foundExactY,postList))
+                                                                                             $ nid'
                                                                                        pairsToBeDeletedOrModified = if foundExactY 
                                                                                                                     then ((takeWhile (\w@(_,y2)->
                                                                                                                                       let x2 = findParabolaX 
-                                                                                                                                               (parabolas M.! w) nx y2
+                                                                                                                                               (parabolas |!| w) nx y2
                                                                                                                                       in x2-y2<=xMy)
                                                                                                                           $ revPairPartition (ny:prevList)) ++ 
                                                                                                                           (takeWhile (\w@(y1,_)->
                                                                                                                                       let x1 = findParabolaX 
-                                                                                                                                               (parabolas M.! w) nx y1
+                                                                                                                                               (parabolas |!| w) nx y1
                                                                                                                                       in x1+y1<=xPy)
                                                                                                                           $ pairPartition (ny:postList)))
-                                                                                                                    else ((takeWhile (\w@(_,y2)->
-                                                                                                                                      let x2 = findParabolaX 
-                                                                                                                                               (parabolas M.! w) nx y2
-                                                                                                                                      in x2-y2<=xMy)
-                                                                                                                          $ revPairPartition prevList) ++ (prevY,postY):
-                                                                                                                          (takeWhile (\w@(y1,_)->
+                                                                                                                    else (let pl= revPairPartition prevList
+                                                                                                                          in (takeWhile 
+                                                                                                                              (\w@(_,y2)->
+                                                                                                                               let x2 = findParabolaX  (parabolas |!| w) nx y2
+                                                                                                                               in x2-y2<=xMy) pl))
+                                                                                                                             ++ (prevY,postY):
+                                                                                                                                    (takeWhile (\w@(y1,_)->
                                                                                                                                       let x1 = findParabolaX 
-                                                                                                                                               (parabolas M.! w) nx y1
+                                                                                                                                               (parabolas |!| w) nx y1
                                                                                                                                       in x1+y1<=xPy)
-                                                                                                                          $ pairPartition postList))
-                                                                                       (bf',ge') = --trace (" pairsToBeDeletedOrModified : "++show pairsToBeDeletedOrModified) $
+                                                                                                                                    $ pairPartition postList)
+                                                                                       (bf',ge') = trace (" pairsToBeDeletedOrModified : "++show pairsToBeDeletedOrModified) $
                                                                                            (L.foldl' (\(bf,ge) k@(y1,y2) ->
-                                                                                                          let v = bf M.! k
+                                                                                                          let v = bf |!| k
                                                                                                               bf' = M.delete k bf
-                                                                                                              id = loc2Id M.! v
+                                                                                                              id = loc2Id |!| v
                                                                                                           in (bf',(nid,id):ge))
                                                                                             (parabolas,graphEdges) pairsToBeDeletedOrModified)
                                                                                        (nYmin,bf'') = --trace (" bf': "++show bf') $
                                                                                            let h@(hy,_)=head pairsToBeDeletedOrModified
-                                                                                               hParabola@(hpx,hpy) = parabolas M.! h
+                                                                                               hParabola@(hpx,hpy) = parabolas |!| h
                                                                                                hx = findParabolaX hParabola nx hy
                                                                                            in if hx-hy>xMy 
                                                                                               then let nYmin = if hpx-hpy>xMy 
@@ -169,7 +177,7 @@ addNewPointLocatedAtTheFrontToBeachFront loc2Id (beachFront,graphEdges) (nx,ny) 
                                                                                               else (hy,bf')
                                                                                        (nYmax,bf''') = --trace (" bf'' : "++show bf'') $
                                                                                            let l@(_,ly) = last pairsToBeDeletedOrModified
-                                                                                               lParabola@(lpx,lpy) = parabolas M.! l
+                                                                                               lParabola@(lpx,lpy) = parabolas |!| l
                                                                                                lx = findParabolaX lParabola nx ly
                                                                                            in if lx+ly>xPy
                                                                                               then let nYmax = if lpx+lpy>xPy
