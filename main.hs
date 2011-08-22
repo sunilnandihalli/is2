@@ -6,8 +6,8 @@ module Main where
 import qualified Data.List as L
 import qualified Data.HashTable as H
 import qualified Data.Map as M
-import qualified Data.Ratio as R
 import qualified Data.Set as S
+import Debug.Trace
 import Data.Ratio
 
 stringToInteger::String->Integer
@@ -20,7 +20,7 @@ stringToIntegral::(Read a,Integral a)=>String->a
 stringToIntegral str = read str
 
 stringToRatio::(Read a,Integral a)=>String->Ratio a
-stringToRatio str = read str
+stringToRatio str = fromIntegral (read str)
 
 dist::(Integral a)=>(Ratio a,Ratio a)->(Ratio a,Ratio a)->Ratio a
 dist (x1,y1) (x2,y2) = max (abs (x1-x2)) (abs (y1-y2))
@@ -32,7 +32,7 @@ solve::(Integral a)=>a->[(Ratio a,Ratio a)]->(a,Ratio a)
 solve n locs = L.minimumBy (\x y -> (compare (snd x) (snd y))) (zip (map fromIntegral [0..]) (map (cost locs) locs))
 
 boundingBox::(Integral a,Ord a)=>[(Ratio a,Ratio a)]->((Ratio a,Ratio a),(Ratio a,Ratio a))
-boundingBox locs = let bufsize=1
+boundingBox locs = let bufsize=0
                        xs = map fst locs
                        ys = map snd locs
                        min' = ((\x -> x-bufsize) . minimum)
@@ -83,19 +83,22 @@ expandToAdvance (rangeToOpenTrapeziaMap,s) s' = let lst = mconvert $ M.toAscList
 deleteOutOfRangeTrapezia::(Num a,Ord a)=>(M.Map (a,a) (a,a))->(a,a)->(M.Map (a,a) (a,a))
 deleteOutOfRangeTrapezia originalTrapeziaMap trimRange@(ymin,ymax) = let Just (((ymin0,ymin1),vmin),restMin) = M.minViewWithKey originalTrapeziaMap
                                                                          Just (((ymax0,ymax1),vmax),restMax) = M.maxViewWithKey originalTrapeziaMap
-                                                                     in if (ymin0<ymin) 
-                                                                        then deleteOutOfRangeTrapezia (if (ymin1>ymin) 
-                                                                                                       then M.insert (ymin,ymin1) vmin restMin 
-                                                                                                       else restMin) trimRange 
-                                                                        else if (ymax1>ymax) 
-                                                                             then deleteOutOfRangeTrapezia (if (ymax0<ymax) 
-                                                                                                            then M.insert (ymax0,ymax) vmax restMax 
-                                                                                                            else restMax) trimRange
-                                                                             else originalTrapeziaMap                 
+                                                                     in trace (" originalTrapeziaMap : "++ show originalTrapeziaMap)
+                                                                            $ if (ymin0<ymin) 
+                                                                              then deleteOutOfRangeTrapezia (if (ymin1>ymin) 
+                                                                                                             then M.insert (ymin,ymin1) vmin restMin 
+                                                                                                             else restMin) trimRange 
+                                                                              else if (ymax1>ymax) 
+                                                                                   then deleteOutOfRangeTrapezia (if (ymax0<ymax) 
+                                                                                                                  then M.insert (ymax0,ymax) vmax restMax 
+                                                                                                                  else restMax) trimRange
+                                                                                   else originalTrapeziaMap                 
 
 advanceSweepLineTo::(Integral a,Ord a)=>((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a)->Ratio a->((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a)
 advanceSweepLineTo front@(rangeToOpenTrapeziaMap,curSweepLineLocation) newSweepLineLocation = let delta = newSweepLineLocation - curSweepLineLocation
-                                                                                                  (expandedTrapezia,_) = expandToAdvance front newSweepLineLocation
+                                                                                                  (expandedTrapezia',_) = expandToAdvance front newSweepLineLocation
+                                                                                                  expandedTrapezia = trace (" expandedTrapezia : "++show expandedTrapezia') 
+                                                                                                                     $ expandedTrapezia 
                                                                                                   ((ymin,_),_) = M.findMin rangeToOpenTrapeziaMap
                                                                                                   ((_,ymax),_) = M.findMax rangeToOpenTrapeziaMap
                                                                                                   trimmedTrapezia =  deleteOutOfRangeTrapezia expandedTrapezia (ymin,ymax)
@@ -192,9 +195,10 @@ addNode locsToId (beachFront,graphEdges) newPoint@(x,_) = let newBeachFront = ad
 vornoiGraph::(Integral a,Ord a,Integral b)=>[(Ratio a,Ratio a)]->[(b,b)]
 vornoiGraph locs = let locsToId = M.fromList (zip locs [0..])
                        idToLocs = M.fromList (zip [0..] locs)
-                       xSortedLocs@((xmin,_):_) = L.sort locs
-                       (beachFront,graphEdges) = L.foldl' (addNode locsToId) ((M.empty,xmin),[]) xSortedLocs
-                   in graphEdges
+                       ((_,y0),(_,y1)) = boundingBox locs 
+                       xSortedLocs@(fp@(xmin,_):_) = L.sort locs
+                       (beachFront,graphEdges) = trace (" Locs : "++ show xSortedLocs) $ L.foldl' (addNode locsToId) ((M.insert (y0,y1) fp M.empty,xmin),[]) xSortedLocs
+                   in trace ("graphEdges : " ++ show graphEdges) graphEdges
 
 
 plotAsString::(Integral a)=>[(Ratio a,Ratio a)]->(a,Ratio a)->String
@@ -214,10 +218,12 @@ tuplify2 [x,y] = (x,y)
 
 main = 
     do input<-getContents
-       let (nstr:locPairStrs) = lines input
-           n = read nstr
+       let w@(nstr:locPairStrs) = lines input
+           n = read nstr::Integer
            locs = take (fromIntegral n) $ map (tuplify2 . (\x-> map stringToRatio $ words x)) locPairStrs
-           answer = solve n locs
+           answer = solve n locs 
+       putStrLn $ " n : "++ show n
+       putStrLn $ " locs : "++show locs
        putStrLn $ show $ vornoiGraph locs
        putStrLn $ plotAsString locs answer
 
