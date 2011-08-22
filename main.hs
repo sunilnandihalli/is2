@@ -1,6 +1,4 @@
-{-|
 {-# OPTIONS_GHC -O2 #-}
-|-}
 
 module Main where
 import qualified Data.List as L
@@ -28,8 +26,8 @@ dist (x1,y1) (x2,y2) = max (abs (x1-x2)) (abs (y1-y2))
 cost::(Integral a)=>[(Ratio a,Ratio a)]->(Ratio a,Ratio a)->Ratio a
 cost locs from= sum $ map (\x->dist from x) locs
 
-solve::(Integral a)=>a->[(Ratio a,Ratio a)]->(a,Ratio a)
-solve n locs = L.minimumBy (\x y -> (compare (snd x) (snd y))) (zip (map fromIntegral [0..]) (map (cost locs) locs))
+bruteForceSolve::(Integral a)=>a->[(Ratio a,Ratio a)]->(a,Ratio a)
+bruteForceSolve n locs = L.minimumBy (\x y -> (compare (snd x) (snd y))) (zip (map fromIntegral [0..]) (map (cost locs) locs))
 
 boundingBox::(Integral a,Ord a)=>[(Ratio a,Ratio a)]->((Ratio a,Ratio a),(Ratio a,Ratio a))
 boundingBox locs = let bufsize=1
@@ -43,11 +41,6 @@ getEdge::(Integral a,Ord a,Integral b)=>M.Map (Ratio a,Ratio a) b->(Ratio a,Rati
 getEdge locsToId p1 p2 = let Just id1 = M.lookup p1 locsToId
                              Just id2 = M.lookup p2 locsToId
                          in (id1,id2)
-
-{-|
-beachFrontIntersects::(Integral a,Ord a)=>[(Ratio a,Ratio a)]->(Ratio a,Ratio a)->a
-beachFrontIntersects beachFront newNode = fst newNode
-|-}
 
 intersectParabolas::(Integral a,Ord a)=>(Ratio a,Ratio a)->(Ratio a,Ratio a)->Ratio a->(Ratio a,Ratio a)
 intersectParabolas p1@(x1,y1) p2@(x2,y2) s
@@ -217,17 +210,36 @@ plotAsString locs (ansPosId,lowestCost) = let ((x0,y0),(x1,y1)) = boundingBox lo
                                                                                 Nothing -> " . "))
                                                         curStr [y0..y1] ++ "\n") ("cost : "++show lowestCost++"\n") [x0..x1] 
                             
-
 tuplify2 :: [a] -> (a,a)
 tuplify2 [x,y] = (x,y)
+
+
+graphMinimizeCost::(Integral a)=>(a->Ratio a)->M.Map a [a]->(a,Ratio a)->(a,Ratio a)
+graphMinimizeCost _ _ cur | trace (" cur "++show cur) False = undefined
+graphMinimizeCost cost gr cur@(curId,curMinCost) = let new@(newId,newMinCost) = L.minimumBy (\x y->(compare (snd x) (snd y))) [(cid,cost cid) | cid<-gr |!| curId]
+                                                   in if curMinCost>newMinCost 
+                                                      then graphMinimizeCost cost gr new 
+                                                      else cur
+
+solve::(Integral a)=>M.Map a [a]->M.Map a (Ratio a,Ratio a)->(a,Ratio a)
+solve gr id2locs | trace (" gr "++show gr++"\n id2locs = "++show id2locs) False = undefined
+solve gr id2locs = let locs = M.elems id2locs
+                       cost id = let from = id2locs|!|id
+                                 in sum $ map (\to->dist from to) locs
+                   in graphMinimizeCost cost gr (0,cost 0)
 
 main = 
     do input<-getContents
        let w@(nstr:locPairStrs) = lines input
            n = read nstr::Integer
            locs = take (fromIntegral n) $ map (tuplify2 . (\x-> map stringToRatio $ words x)) locPairStrs
-           answer = solve n locs 
-       putStrLn $ show $ vornoiGraph locs
+           bruteForceAnswer = bruteForceSolve n locs 
+           edges = vornoiGraph locs
+           graph = M.fromListWith (++) $ [(x,[y])|(x,y)<-edges]++[(y,[x])|(x,y)<-edges]
+           answer = trace ("gr : "++show graph) $ solve graph $ M.fromList (zip [0..] locs)  
+   --    print $ show graph            
+       putStrLn $ plotAsString locs bruteForceAnswer
        putStrLn $ plotAsString locs answer
+
 
        
