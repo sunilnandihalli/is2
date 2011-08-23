@@ -120,7 +120,7 @@ m |!| k = case M.lookup k m of
             Just v -> v
             Nothing -> error (" map : "++show m++" k : "++show k)
 
-addNewPointLocatedAtTheFrontToBeachFront::(Show a,Show b,Integral a)=>M.Map (Ratio a,Ratio a) b->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])->
+addNewPointLocatedAtTheFrontToBeachFront::(Show a,Show b,Integral a)=>M.Map (Ratio a,Ratio a) b->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])->                
                                           (Ratio a,Ratio a)->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])
 addNewPointLocatedAtTheFrontToBeachFront loc2Id (beachFront,graphEdges) (nx,ny) = (let flatten xs = L.foldl' (\cur (x1,x2) -> x1:x2:cur) [] (reverse xs)
                                                                                        (parabolas,frontLoc) = beachFront
@@ -229,6 +229,7 @@ main =
            edges = vornoiGraph locs
            graph = M.fromListWith (++) $ [(x,[y])|(x,y)<-edges]++[(y,[x])|(x,y)<-edges]
            answer = solve graph $ M.fromList (zip [0..] locs)  
+       putStrLn $ plotAsString locs bruteForceAnswer
        putStrLn $ (show.numerator.snd) answer
 
        
