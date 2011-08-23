@@ -56,10 +56,10 @@ intersectParabolas p1@(x1,y1) p2@(x2,y2) s
         hsx = (s-x1) / 2
 
 mconvert::[((a,a),(a,a))]->[(a,Maybe (a,a),Maybe (a,a))]
-mconvert listOfRangeValPairs = helper Nothing listOfRangeValPairs
- where helper _ [] = []
-       helper prev (((y1,y2),v):[]) = (y1,prev,Just v):(y2,Just v,Nothing):[]
-       helper prev (((y1,y2),v):restOfRanges) = (y1,prev,Just v):(helper (Just v) restOfRanges)                                               
+mconvert listOfRangeValPairs = reverse $ helper [] Nothing listOfRangeValPairs
+ where helper acc _ [] = acc
+       helper acc prev (((y1,y2),v):[]) = (y2,Just v,Nothing):(y1,prev,Just v):acc
+       helper acc prev (((y1,y2),v):restOfRanges) = helper ((y1,prev,Just v):acc) (Just v) restOfRanges                                               
 
 newYLocation::(Ord a,Integral a)=>(Ratio a,Maybe (Ratio a,Ratio a),Maybe (Ratio a,Ratio a))->Ratio a->(Ratio a,Ratio a)
 newYLocation (y,Nothing,Just (x2,y2)) s = (y,y-s)
@@ -101,13 +101,19 @@ findParabolaX (x,y) s y'
  where dy = abs(y'-y)
        hsx = (s-x) / 2
 
+pairPartitionHelper::[(b,b)]->[b]->[(b,b)]
+pairPartitionHelper pairs (x1:x2:xs) = pairPartitionHelper ((x1,x2):pairs) (x2:xs)
+pairPartitionHelper pairs _ = pairs
+
 pairPartition::[b]->[(b,b)]
-pairPartition (x1:x2:xs) = (x1,x2):(pairPartition xs)
-pairPartition _ = []
+pairPartition xs = reverse $ pairPartitionHelper [] xs
+
+revPairPartitionHelper::[(b,b)]->[b]->[(b,b)]
+revPairPartitionHelper pairs (x1:x2:xs) = revPairPartitionHelper ((x2,x1):pairs) (x2:xs)
+revPairPartitionHelper pairs _ = pairs
 
 revPairPartition::[b]->[(b,b)]
-revPairPartition (x1:x2:xs) = (x2,x1):(revPairPartition xs)
-revPairPartition _ = []
+revPairPartition xs = reverse $ revPairPartitionHelper [] xs
 
 (|!|)::(Ord k,Show k,Show v)=>M.Map k v->k->v
 m |!| k = case M.lookup k m of
@@ -116,19 +122,16 @@ m |!| k = case M.lookup k m of
 
 addNewPointLocatedAtTheFrontToBeachFront::(Show a,Show b,Integral a)=>M.Map (Ratio a,Ratio a) b->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])->
                                           (Ratio a,Ratio a)->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])
-addNewPointLocatedAtTheFrontToBeachFront a b c | trace (" ---addNewPointToBeachFront---\n (bf,ge) : "++show b++"\n newPoint : "++show c) False = undefined
 addNewPointLocatedAtTheFrontToBeachFront loc2Id (beachFront,graphEdges) (nx,ny) = (let flatten xs = L.foldl' (\cur (x1,x2) -> x1:x2:cur) [] (reverse xs)
                                                                                        (parabolas,frontLoc) = beachFront
                                                                                        toDecendingList = reverse . S.toAscList 
                                                                                        ySet = S.fromAscList $ flatten $ M.keys parabolas
-                                                                                       (prevSet,foundExactY,postSet) = trace (" ySet : "++show ySet) S.splitMember ny ySet
+                                                                                       (prevSet,foundExactY,postSet) = S.splitMember ny ySet
                                                                                        prevList@(prevY:_) = toDecendingList prevSet
                                                                                        postList@(postY:_) = S.toAscList postSet
                                                                                        (xPy,xMy) = (nx+ny,nx-ny)
-                                                                                       nid' =  trace (" loc2Id : "++ show loc2Id++"\n parabolas : "++show parabolas) $
-                                                                                               loc2Id |!| (nx,ny)        
-                                                                                       nid = trace (" nid : "++show nid'++"\npr,fy,po : "++show (prevList,foundExactY,postList))
-                                                                                             $ nid'
+                                                                                       nid' =  loc2Id |!| (nx,ny)        
+                                                                                       nid =  nid'
                                                                                        pairsToBeDeletedOrModified = if foundExactY 
                                                                                                                     then ((takeWhile (\w@(_,y2)->
                                                                                                                                       let x2 = findParabolaX 
@@ -151,44 +154,37 @@ addNewPointLocatedAtTheFrontToBeachFront loc2Id (beachFront,graphEdges) (nx,ny) 
                                                                                                                                                (parabolas |!| w) nx y1
                                                                                                                                       in x1+y1<=xPy)
                                                                                                                                     $ pairPartition postList)
-                                                                                       (bf',ge') = trace (" pairsToBeDeletedOrModified : "++show pairsToBeDeletedOrModified) $
-                                                                                           (L.foldl' (\(bf,ge) k@(y1,y2) ->
+                                                                                       (bf',ge') =  (L.foldl' (\(bf,ge) k@(y1,y2) ->
                                                                                                           let v = bf |!| k
                                                                                                               bf' = M.delete k bf
                                                                                                               id = loc2Id |!| v
                                                                                                           in (bf',(nid,id):ge))
-                                                                                            (parabolas,graphEdges) pairsToBeDeletedOrModified)
-                                                                                       (nYmin,bf'') = --trace (" bf': "++show bf') $
-                                                                                           let h@(hy,_)=head pairsToBeDeletedOrModified
-                                                                                               hParabola@(hpx,hpy) = parabolas |!| h
-                                                                                               hx = findParabolaX hParabola nx hy
-                                                                                           in if hx-hy>xMy 
-                                                                                              then let nYmin = if hpx-hpy>xMy 
-                                                                                                               then (hpy+ny)/2
-                                                                                                               else ny-(nx-hpx)/2
-                                                                                                   in (nYmin,M.insert (hy,nYmin) hParabola bf')
-                                                                                              else (hy,bf')
-                                                                                       (nYmax,bf''') = --trace (" bf'' : "++show bf'') $
-                                                                                           let l@(_,ly) = last pairsToBeDeletedOrModified
-                                                                                               lParabola@(lpx,lpy) = parabolas |!| l
-                                                                                               lx = findParabolaX lParabola nx ly
-                                                                                           in if lx+ly>xPy
-                                                                                              then let nYmax = if lpx+lpy>xPy
-                                                                                                               then (lpy+ny)/2
-                                                                                                               else ny+(nx-lpx)/2
-                                                                                                   in (nYmax,M.insert (nYmax,ly) lParabola bf'')
-                                                                                              else (ly,bf'')
-                                                                                       bf'''' = --trace (" bf''' : "++show bf''') $ 
-                                                                                                M.insert (nYmin,nYmax) (nx,ny) bf'''            
-                                                                                 in --trace (" bf'''' : "++show bf'''') $
-                                                                                        ((bf'''',nx),ge'))     
+                                                                                                     (parabolas,graphEdges) pairsToBeDeletedOrModified)
+                                                                                       (nYmin,bf'') = let h@(hy,_)=head pairsToBeDeletedOrModified
+                                                                                                          hParabola@(hpx,hpy) = parabolas |!| h
+                                                                                                          hx = findParabolaX hParabola nx hy
+                                                                                                      in if hx-hy>xMy 
+                                                                                                         then let nYmin = if hpx-hpy>xMy 
+                                                                                                                          then (hpy+ny)/2
+                                                                                                                          else ny-(nx-hpx)/2
+                                                                                                              in (nYmin,M.insert (hy,nYmin) hParabola bf')
+                                                                                                         else (hy,bf')
+                                                                                       (nYmax,bf''') = let l@(_,ly) = last pairsToBeDeletedOrModified
+                                                                                                           lParabola@(lpx,lpy) = parabolas |!| l
+                                                                                                           lx = findParabolaX lParabola nx ly
+                                                                                                       in if lx+ly>xPy
+                                                                                                          then let nYmax = if lpx+lpy>xPy
+                                                                                                                           then (lpy+ny)/2
+                                                                                                                           else ny+(nx-lpx)/2
+                                                                                                               in (nYmax,M.insert (nYmax,ly) lParabola bf'')
+                                                                                                          else (ly,bf'')
+                                                                                       bf'''' =  M.insert (nYmin,nYmax) (nx,ny) bf'''            
+                                                                                 in ((bf'''',nx),ge'))     
                                                                                    
 addNode::(Integral a,Ord a,Integral b)=>M.Map (Ratio a,Ratio a) b->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])
        ->(Ratio a,Ratio a)->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])
-addNode locsToId (beachFront,graphEdges) newPoint@(x,_) = let newBeachFront = trace (" beachFront : "++show beachFront++"\n graphEdges : "++show graphEdges) $
-                                                                              advanceSweepLineTo beachFront x
-                                                          in --trace (" newBeachFront : "++show newBeachFront) $ 
-                                                             addNewPointLocatedAtTheFrontToBeachFront locsToId (newBeachFront,graphEdges) newPoint
+addNode locsToId (beachFront,graphEdges) newPoint@(x,_) = let newBeachFront = advanceSweepLineTo beachFront x
+                                                          in addNewPointLocatedAtTheFrontToBeachFront locsToId (newBeachFront,graphEdges) newPoint
              
 vornoiGraph::(Integral a,Ord a,Integral b)=>[(Ratio a,Ratio a)]->[(b,b)]
 vornoiGraph locs = let locsToId = M.fromList (zip locs [0..])
@@ -196,8 +192,7 @@ vornoiGraph locs = let locsToId = M.fromList (zip locs [0..])
                        ((_,y0),(_,y1)) = boundingBox locs 
                        xSortedLocs@(fp@(xmin,_):_) = L.sort locs
                        (beachFront,graphEdges) = L.foldl' (addNode locsToId) ((M.insert (y0,y1) fp M.empty,xmin),[]) (drop 1 xSortedLocs)
-                   in trace ("graphEdges : " ++ show graphEdges) graphEdges
-
+                   in  graphEdges
 
 plotAsString::(Integral a)=>[(Ratio a,Ratio a)]->(a,Ratio a)->String
 plotAsString locs (ansPosId,lowestCost) = let ((x0,y0),(x1,y1)) = boundingBox locs
@@ -213,16 +208,13 @@ plotAsString locs (ansPosId,lowestCost) = let ((x0,y0),(x1,y1)) = boundingBox lo
 tuplify2 :: [a] -> (a,a)
 tuplify2 [x,y] = (x,y)
 
-
 graphMinimizeCost::(Integral a)=>(a->Ratio a)->M.Map a [a]->(a,Ratio a)->(a,Ratio a)
-graphMinimizeCost _ _ cur | trace (" cur "++show cur) False = undefined
 graphMinimizeCost cost gr cur@(curId,curMinCost) = let new@(newId,newMinCost) = L.minimumBy (\x y->(compare (snd x) (snd y))) [(cid,cost cid) | cid<-gr |!| curId]
                                                    in if curMinCost>newMinCost 
                                                       then graphMinimizeCost cost gr new 
                                                       else cur
 
 solve::(Integral a)=>M.Map a [a]->M.Map a (Ratio a,Ratio a)->(a,Ratio a)
-solve gr id2locs | trace (" gr "++show gr++"\n id2locs = "++show id2locs) False = undefined
 solve gr id2locs = let locs = M.elems id2locs
                        cost id = let from = id2locs|!|id
                                  in sum $ map (\to->dist from to) locs
@@ -236,10 +228,7 @@ main =
            bruteForceAnswer = bruteForceSolve n locs 
            edges = vornoiGraph locs
            graph = M.fromListWith (++) $ [(x,[y])|(x,y)<-edges]++[(y,[x])|(x,y)<-edges]
-           answer = trace ("gr : "++show graph) $ solve graph $ M.fromList (zip [0..] locs)  
-   --    print $ show graph            
-       putStrLn $ plotAsString locs bruteForceAnswer
-       putStrLn $ plotAsString locs answer
-
+           answer = solve graph $ M.fromList (zip [0..] locs)  
+       putStrLn $ (show.numerator.snd) answer
 
        
