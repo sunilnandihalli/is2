@@ -38,14 +38,12 @@ boundingBox locs = let bufsize=1
                    in ((min' xs,min' ys),(max' xs,max' ys))
 
 getEdge::(Integral a,Ord a,Integral b)=>M.Map (Ratio a,Ratio a) b->(Ratio a,Ratio a)->(Ratio a,Ratio a)->(b,b)
-getEdge locsToId p1 p2 = let Just id1 = M.lookup p1 locsToId
-                             Just id2 = M.lookup p2 locsToId
-                         in (id1,id2)
+getEdge locsToId p1 p2 = (locsToId|!|p1,locsToId|!|p2)
 
-intersectParabolas::(Integral a,Ord a)=>(Ratio a,Ratio a)->(Ratio a,Ratio a)->Ratio a->(Ratio a,Ratio a)
-intersectParabolas p1@(x1,y1) p2@(x2,y2) s
-    | x1 > x2 = intersectParabolas p2 p1 s
-    | dy > (s - x1) / 2 = (s-dy, yav)
+intersectParabolas'::(Integral a,Ord a)=>(Ratio a,Ratio a)->(Ratio a,Ratio a)->Ratio a->(Ratio a,Ratio a)
+intersectParabolas' p1@(x1,y1) p2@(x2,y2) s
+    | x1 > x2 = intersectParabolas' p2 p1 s
+    | dy >= hsx = (s-dy, yav)
     | x1 == x2 = (sxav,yav)
     | y1 < y2 = (sxav,y2-hsx)
     | y1 > y2 = (sxav,y2+hsx)
@@ -55,6 +53,10 @@ intersectParabolas p1@(x1,y1) p2@(x2,y2) s
         sxav = (s+x1) / 2
         hsx = (s-x1) / 2
 
+intersectParabolas::(Integral a,Ord a)=>(Ratio a,Ratio a)->(Ratio a,Ratio a)->Ratio a->(Ratio a,Ratio a) 
+intersectParabolas p1 p2 s = let (x,y) = intersectParabolas' p1 p2 s
+                             in trace ("(x,y) : "++show (x,y)++" p1 : "++show p1++" p2 : "++show p2++" s : "++show s) (x,y)
+            
 mconvert::[((a,a),(a,a))]->[(a,Maybe (a,a),Maybe (a,a))]
 mconvert listOfRangeValPairs = reverse $ helper [] Nothing listOfRangeValPairs
  where helper acc _ [] = acc
@@ -66,11 +68,17 @@ newYLocation (y,Nothing,Just (x2,y2)) s = (y,y-s)
 newYLocation (y,Just (x1,y1),Nothing) s = (y,y+s)
 newYLocation (y,(Just p1),(Just p2)) s = (y,snd $ intersectParabolas p1 p2 s)
 
+isDistinctAscList::(Ord a,Eq a,Show a)=>[a]->Bool
+isDistinctAscList (x1:x2:xs) = if x1<x2  then isDistinctAscList (x2:xs) else error ("loc : "++(show (x1,x2)))
+isDistinctAscList _ = True
+
 expandToAdvance::(Integral a,Ord a)=>((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a)->Ratio a->((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a)
-expandToAdvance (rangeToOpenTrapeziaMap,s) s' = let lst = mconvert $ M.toAscList rangeToOpenTrapeziaMap
-                                                    y' = M.fromDistinctAscList $ map (\x->newYLocation x s') lst
-                                                in (M.mapKeysMonotonic (\(y1,y2) ->let (Just v1) = M.lookup y1 y'  
-                                                                                       (Just v2) = M.lookup y2 y'
+expandToAdvance (rangeToOpenTrapeziaMap,s) s' = let lst = mconvert $ M.toAscList (if M.valid rangeToOpenTrapeziaMap then rangeToOpenTrapeziaMap else error "invalide input map")
+                                                    lst' = map (\x->newYLocation x s') lst  
+                                                    y' = if (isDistinctAscList lst') 
+                                                         then M.fromDistinctAscList lst' 
+                                                         else error ("function not monotonic\n orig"++show lst++"\nmapped : "++show lst')
+                                                in (M.mapKeysMonotonic (\(y1,y2) ->let [v1,v2] = map (y'|!|) [y1,y2]
                                                                                    in (v1,v2)) rangeToOpenTrapeziaMap,s')
 
 deleteOutOfRangeTrapezia::(Num a,Ord a)=>(M.Map (a,a) (a,a))->(a,a)->(M.Map (a,a) (a,a))
@@ -86,6 +94,15 @@ deleteOutOfRangeTrapezia originalTrapeziaMap trimRange@(ymin,ymax) = let Just ((
                                                                                                             else restMax) trimRange
                                                                              else originalTrapeziaMap                 
                                                                                   
+
+removeDisappearingValleys::(Integral a,Ord a,Integral b)=>
+                           (((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])->Ratio a->
+                           (((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])
+removeDisappearingValleys orig@(front,graphedges) newSweepLineLoc = let kVList = M.toAscList front
+                                                                    in orig
+                                                                        
+
+
 advanceSweepLineTo::(Integral a,Ord a)=>((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a)->Ratio a->((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a)
 advanceSweepLineTo front@(rangeToOpenTrapeziaMap,curSweepLineLocation) newSweepLineLocation = let delta = newSweepLineLocation - curSweepLineLocation
                                                                                                   (expandedTrapezia,_) = expandToAdvance front newSweepLineLocation
@@ -118,7 +135,7 @@ revPairPartition xs = reverse $ revPairPartitionHelper [] xs
 (|!|)::(Ord k,Show k,Show v)=>M.Map k v->k->v
 m |!| k = case M.lookup k m of
             Just v -> v
-            Nothing -> error (" map : "++show m++" k : "++show k)
+            Nothing -> error ("\n--------\n map : "++show m++"\n k : "++show k++"\n isValid : "++ (show $ M.valid m))
 
 addNewPointLocatedAtTheFrontToBeachFront::(Show a,Show b,Integral a)=>M.Map (Ratio a,Ratio a) b->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])->                
                                           (Ratio a,Ratio a)->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])
@@ -183,8 +200,19 @@ addNewPointLocatedAtTheFrontToBeachFront loc2Id (beachFront,graphEdges) (nx,ny) 
                                                                                    
 addNode::(Integral a,Ord a,Integral b)=>M.Map (Ratio a,Ratio a) b->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])
        ->(Ratio a,Ratio a)->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])
-addNode locsToId (beachFront,graphEdges) newPoint@(x,_) = let newBeachFront = advanceSweepLineTo beachFront x
-                                                          in addNewPointLocatedAtTheFrontToBeachFront locsToId (newBeachFront,graphEdges) newPoint
+addNode _ ((f,_),_) np | (if M.valid f then False else error ("input front not valid"++show np++"\n map : "++show f)) = undefined
+addNode locsToId (beachFront@(f0,_),graphEdges) newPoint@(x,_) = let newBeachFront@(f,_) = if (M.valid f0) 
+                                                                                           then advanceSweepLineTo beachFront x 
+                                                                                           else error ("tree not valid -1"++show f0)
+                                                                     retval@((f',_),_) = if (M.valid f) 
+                                                                                         then addNewPointLocatedAtTheFrontToBeachFront locsToId 
+                                                                                                  (newBeachFront,graphEdges) newPoint
+                                                                                         else error ("tree not valid 000000 \n" 
+                                                                                                     ++ "\n elems : "++show (L.sort (M.elems f))
+                                                                                                     ++ "\n newPoint : "++show newPoint++"\n"
+                                                                                                     ++ (plotAsString (L.sort (M.elems f)) (fromIntegral ((L.length (M.elems f))-1),0%1)) ++" \n new : "
+                                                                                                     ++ (show f) ++ "\nold : "++(show f0) ++"\n np : "++show newPoint)
+                                                                 in if (M.valid f') then retval else error ("tree not valid 1111 " ++ (show f'))
              
 vornoiGraph::(Integral a,Ord a,Integral b)=>[(Ratio a,Ratio a)]->[(b,b)]
 vornoiGraph locs = let locsToId = M.fromList (zip locs [0..])
