@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -O2 #-}
+{-# OPTIONS_GHC -O2 -fspec-constr-count=6#-}
 
 module Main where
 import qualified Data.List as L
@@ -82,34 +82,60 @@ expandToAdvance (rangeToOpenTrapeziaMap,s) s' = let lst = mconvert $ M.toAscList
                                                                                    in (v1,v2)) rangeToOpenTrapeziaMap,s')
 
 deleteOutOfRangeTrapezia::(Num a,Ord a)=>(M.Map (a,a) (a,a))->(a,a)->(M.Map (a,a) (a,a))
-deleteOutOfRangeTrapezia originalTrapeziaMap trimRange@(ymin,ymax) = let Just (((ymin0,ymin1),vmin),restMin) = M.minViewWithKey originalTrapeziaMap
-                                                                         Just (((ymax0,ymax1),vmax),restMax) = M.maxViewWithKey originalTrapeziaMap
-                                                                     in if (ymin0<ymin) 
-                                                                        then deleteOutOfRangeTrapezia (if (ymin1>ymin) 
-                                                                                                       then M.insert (ymin,ymin1) vmin restMin 
-                                                                                                       else restMin) trimRange 
-                                                                        else if (ymax1>ymax) 
-                                                                             then deleteOutOfRangeTrapezia (if (ymax0<ymax) 
-                                                                                                            then M.insert (ymax0,ymax) vmax restMax 
-                                                                                                            else restMax) trimRange
-                                                                             else originalTrapeziaMap                 
-                                                                                  
+deleteOutOfRangeTrapezia originalTrapeziaMap trimRange@(ymin,ymax) 
+    | (M.null originalTrapeziaMap) = M.empty
+    | otherwise      = let Just (((ymin0,ymin1),vmin),restMin) = M.minViewWithKey originalTrapeziaMap
+                           Just (((ymax0,ymax1),vmax),restMax) = M.maxViewWithKey originalTrapeziaMap
+                       in if (ymin0<ymin) 
+                          then deleteOutOfRangeTrapezia (if (ymin1>ymin) 
+                                                         then M.insert (ymin,ymin1) vmin restMin 
+                                                         else restMin) trimRange 
+                          else if (ymax1>ymax) 
+                               then deleteOutOfRangeTrapezia (if (ymax0<ymax) 
+                                                              then M.insert (ymax0,ymax) vmax restMax 
+                                                              else restMax) trimRange
+                               else originalTrapeziaMap                 
+                                    
 
 removeDisappearingValleys::(Integral a,Ord a,Integral b)=>
+                           (M.Map (Ratio a,Ratio a) b)->
                            (((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])->Ratio a->
                            (((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])
-removeDisappearingValleys orig@(front,graphedges) newSweepLineLoc = let kVList = M.toAscList front
-                                                                    in orig
+removeDisappearingValleys loc2Id ((trapMap,sOld),graphedges) s = 
+    let kVList = M.toAscList trapMap
+        (kVlistAfterRemovingDissappearingValleys,_,_,ge') =  L.foldl' f ([],[],[],graphedges) kVList
+            where 
+              f (revRet,[],flat@(flatF@(_,(x0,_)):[]),ge) newVal@(_,(x2,y2)) 
+                  | x0<=x2 = ((flatF:revRet),[],[newVal],ge)
+                  | x0>x2 = (revRet,flat,[newVal],ge)   
+              f (revRet,decs@(decsF@(_,decLoc@(x1,y1)):decsR),flat@((_,(x0,_)):_),ge) newVal@(_,incLoc@(x2,y2)) 
+                  | (x0==x1) = f (revRet,decsR,decsF:flat,ge) newVal
+                  | (x0==x2) = (revRet,decs,newVal:flat,ge)
+                  | (x0>x2) = (revRet,flat++decs,[newVal],ge)
+                  | (s-x0)<(y2-y1) = (flat++decs++revRet,[],[newVal],ge)
+                  | otherwise = let decId = loc2Id|!|decLoc
+                                    incId = loc2Id|!|incLoc
+                                in f (revRet,decsR,[decsF],(decId,incId):ge) newVal
+              f (revRet,decs,[],ge) nv = (revRet,decs,[nv],ge)                     
+              f (revRet,decs,flat,ge) nv = error ("no match found for \n revRet : "++(show revRet)++" \n decs : "++(show decs)
+                                                 ++"\n flat : "++ (show flat)++"\n ge : "++(show ge)++"\n")
+        newTrapMap = M.fromDistinctAscList $ reverse kVlistAfterRemovingDissappearingValleys
+    in ((newTrapMap,sOld),ge')
                                                                         
 
 
-advanceSweepLineTo::(Integral a,Ord a)=>((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a)->Ratio a->((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a)
-advanceSweepLineTo front@(rangeToOpenTrapeziaMap,curSweepLineLocation) newSweepLineLocation = let delta = newSweepLineLocation - curSweepLineLocation
-                                                                                                  (expandedTrapezia,_) = expandToAdvance front newSweepLineLocation
-                                                                                                  ((ymin,_),_) = M.findMin rangeToOpenTrapeziaMap
-                                                                                                  ((_,ymax),_) = M.findMax rangeToOpenTrapeziaMap
-                                                                                                  trimmedTrapezia =  deleteOutOfRangeTrapezia expandedTrapezia (ymin,ymax)
-                                                                                               in (trimmedTrapezia,newSweepLineLocation)
+advanceSweepLineTo::(Integral a,Ord a,Integral b)=>
+                    (M.Map (Ratio a,Ratio a) b)->
+                    (((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])->Ratio a->
+                    (((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])
+advanceSweepLineTo loc2Id (front@(rangeToOpenTrapeziaMap,curSweepLineLocation),ge) newSweepLineLocation = 
+    let delta = newSweepLineLocation - curSweepLineLocation
+        (newFront,ge')= removeDisappearingValleys loc2Id (front,ge) newSweepLineLocation
+        (expandedTrapezia,_) = expandToAdvance newFront newSweepLineLocation
+        ((ymin,_),_) = M.findMin rangeToOpenTrapeziaMap
+        ((_,ymax),_) = M.findMax rangeToOpenTrapeziaMap
+        trimmedTrapezia =  deleteOutOfRangeTrapezia expandedTrapezia (ymin,ymax)
+    in ((trimmedTrapezia,newSweepLineLocation),ge')
 
 findParabolaX::(Integral a,Ord a)=>(Ratio a,Ratio a)->Ratio a->Ratio a->Ratio a
 findParabolaX (x,y) s y' 
@@ -201,12 +227,12 @@ addNewPointLocatedAtTheFrontToBeachFront loc2Id (beachFront,graphEdges) (nx,ny) 
 addNode::(Integral a,Ord a,Integral b)=>M.Map (Ratio a,Ratio a) b->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])
        ->(Ratio a,Ratio a)->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])
 addNode _ ((f,_),_) np | (if M.valid f then False else error ("input front not valid"++show np++"\n map : "++show f)) = undefined
-addNode locsToId (beachFront@(f0,_),graphEdges) newPoint@(x,_) = let newBeachFront@(f,_) = if (M.valid f0) 
-                                                                                           then advanceSweepLineTo beachFront x 
-                                                                                           else error ("tree not valid -1"++show f0)
+addNode locsToId (beachFront@(f0,_),graphEdges) newPoint@(x,_) = let (newBeachFront@(f,_),ge') = if (M.valid f0) 
+                                                                                                 then advanceSweepLineTo locsToId (beachFront,graphEdges) x 
+                                                                                                 else error ("tree not valid -1"++show f0)
                                                                      retval@((f',_),_) = if (M.valid f) 
                                                                                          then addNewPointLocatedAtTheFrontToBeachFront locsToId 
-                                                                                                  (newBeachFront,graphEdges) newPoint
+                                                                                                  (newBeachFront,ge') newPoint
                                                                                          else error ("tree not valid 000000 \n" 
                                                                                                      ++ "\n elems : "++show (L.sort (M.elems f))
                                                                                                      ++ "\n newPoint : "++show newPoint++"\n"
