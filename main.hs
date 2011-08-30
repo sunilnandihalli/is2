@@ -40,8 +40,8 @@ boundingBox locs = let bufsize=1
 getEdge::(Integral a,Ord a,Integral b)=>M.Map (Ratio a,Ratio a) b->(Ratio a,Ratio a)->(Ratio a,Ratio a)->(b,b)
 getEdge locsToId p1 p2 = (locsToId|!|p1,locsToId|!|p2)
 
-intersectParabolas'::(Integral a,Ord a)=>(Ratio a,Ratio a)->(Ratio a,Ratio a)->Ratio a->(Ratio a,Ratio a)
-intersectParabolas' p1@(x1,y1) p2@(x2,y2) s
+intersectParabolas::(Integral a,Ord a)=>(Ratio a,Ratio a)->(Ratio a,Ratio a)->Ratio a->(Ratio a,Ratio a)
+intersectParabolas p1@(x1,y1) p2@(x2,y2) s
     | x1 > x2 = intersectParabolas' p2 p1 s
     | dy >= hsx = (s-dy, yav)
     | x1 == x2 = (sxav,yav)
@@ -53,8 +53,8 @@ intersectParabolas' p1@(x1,y1) p2@(x2,y2) s
         sxav = (s+x1) / 2
         hsx = (s-x1) / 2
 
-intersectParabolas::(Integral a,Ord a)=>(Ratio a,Ratio a)->(Ratio a,Ratio a)->Ratio a->(Ratio a,Ratio a) 
-intersectParabolas p1 p2 s = let (x,y) = intersectParabolas' p1 p2 s
+intersectParabolas'::(Integral a,Ord a)=>(Ratio a,Ratio a)->(Ratio a,Ratio a)->Ratio a->(Ratio a,Ratio a) 
+intersectParabolas' p1 p2 s = let (x,y) = intersectParabolas' p1 p2 s
                              in trace ("(x,y) : "++show (x,y)++" p1 : "++show p1++" p2 : "++show p2++" s : "++show s) (x,y)
             
 mconvert::[((a,a),(a,a))]->[(a,Maybe (a,a),Maybe (a,a))]
@@ -101,25 +101,30 @@ removeDisappearingValleys::(Integral a,Ord a,Integral b)=>
                            (M.Map (Ratio a,Ratio a) b)->
                            (((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])->Ratio a->
                            (((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])
-removeDisappearingValleys loc2Id ((trapMap,sOld),graphedges) s  
-    | trace ("loc2Id : "++(show loc2Id)++"\n trapMap : "++(show trapMap)++"\n graphEdges : "++(show graphedges)++"\n (sold,s) : "++(show (sOld,s))++"\n") False = undefined
-    | otherwise = 
+removeDisappearingValleys _ ((_,sOld),graphedges) s 
+    | trace ("entering removeDisappearingValleys for (sOld,s) : "++(show (sOld,s))++" ge : "++(show graphedges)) False = undefined
+removeDisappearingValleys _ w@((_,sOld),_) s 
+    | sOld==s = w                                                                                                                         
+removeDisappearingValleys loc2Id ((trapMap,sOld),graphedges) s  =
         let kVList = M.toAscList trapMap
-            (revRet,decs,flat,ge') =  L.foldl' g ([],[],[],graphedges) kVList
+            (revRet,decs,flat,ge') =  L.foldl' h ([],[],[],graphedges) kVList
               where 
-               g a b = trace (" s : "++(show s)++"\n before : revRet,decs,flat,ge : \n"++(show a)++"\n newVal : "++(show b)++"\n") $ trace ("after : "++(show ret)++"\n") ret 
-                          where ret = f a b
+               h a b = trace ("---------------------------------------\n"
+                              ++" s : "++(show s)++"\n before : revRet,decs,flat,ge : \n"
+                                    ++(show a)++"\n newVal : "++(show b)++"\n") $ trace ("after : "++(show ret)++"\n") ret 
+                          where ret = g a b
+               g a b = trace ("(a,b) : "++(show (a,b))) $ f a b
                f (revRet,[],flat@(flatF@(_,(x0,_)):[]),ge) newVal@(_,(x2,y2)) 
                   | x0<=x2 = ((flatF:revRet),[],[newVal],ge)
                   | x0>x2 = (revRet,flat,[newVal],ge)   
                f (revRet,decs@(decsF@(_,decLoc@(x1,y1)):decsR),flat@((_,(x0,_)):_),ge) newVal@(_,incLoc@(x2,y2)) 
-                  | (x0==x1) = f (revRet,decsR,decsF:flat,ge) newVal
+                  | (x0==x1) = g (revRet,decsR,decsF:flat,ge) newVal
                   | (x0==x2) = (revRet,decs,newVal:flat,ge)
                   | (x0>x2) = (revRet,flat++decs,[newVal],ge)
                   | (s-x0)<(y2-y1) = (flat++decs++revRet,[],[newVal],ge)
                   | otherwise = let decId = loc2Id|!|decLoc
                                     incId = loc2Id|!|incLoc
-                                in f (revRet,decsR,[decsF],(decId,incId):ge) newVal
+                                in g (revRet,decsR,[decsF],(decId,incId):ge) newVal
                f (revRet,decs,[],ge) nv = (revRet,decs,[nv],ge)                     
                f (revRet,decs,flat,ge) nv = error ("no match found for \n revRet : "++(show revRet)++" \n decs : "++(show decs)
                                                       ++"\n flat : "++ (show flat)++"\n ge : "++(show ge)++"\n")
@@ -134,8 +139,7 @@ advanceSweepLineTo::(Integral a,Ord a,Integral b)=>
                     (((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])
 advanceSweepLineTo loc2Id (front@(rangeToOpenTrapeziaMap,curSweepLineLocation),ge) newSweepLineLocation = 
     let delta = newSweepLineLocation - curSweepLineLocation
-        tmp = trace (" oldfront : "++(show (front,ge))++"\n") $ removeDisappearingValleys loc2Id (front,ge) newSweepLineLocation
-        (newFront,ge') = trace (" newfront : "++(show tmp)++"\n") tmp                 
+        (newFront,ge') =  removeDisappearingValleys loc2Id (front,ge) newSweepLineLocation
         (expandedTrapezia,_) = expandToAdvance newFront newSweepLineLocation
         ((ymin,_),_) = M.findMin rangeToOpenTrapeziaMap
         ((_,ymax),_) = M.findMax rangeToOpenTrapeziaMap
@@ -170,16 +174,16 @@ m |!| k = case M.lookup k m of
 
 addNewPointLocatedAtTheFrontToBeachFront::(Show a,Show b,Integral a)=>M.Map (Ratio a,Ratio a) b->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])->                
                                           (Ratio a,Ratio a)->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])
-addNewPointLocatedAtTheFrontToBeachFront a b c
-    | trace ("loc2Id : "++(show a)++"\n bf-ge : "++(show b)++"\n np : "++(show c)++"\n") False = undefined
 addNewPointLocatedAtTheFrontToBeachFront loc2Id ((parabolas,_),_) np
     | (M.null parabolas) = error "should not have come here!"
+addNewPointLocatedAtTheFrontToBeachFront loc2Id bfGe np
+    | trace ("entering addNewPointLocatedAtTheFrontToBeachFront for "++(show np)++" id : "++(show (loc2Id|!|np))++"\n") False = undefined
 addNewPointLocatedAtTheFrontToBeachFront loc2Id (beachFront,graphEdges) (nx,ny) = (let flatten xs = L.foldl' (\cur (x1,x2) -> x1:x2:cur) [] (reverse xs)
                                                                                        (parabolas,frontLoc) = beachFront
                                                                                        toDecendingList = reverse . S.toAscList 
                                                                                        ySet = S.fromAscList $ flatten $ M.keys parabolas
                                                                                        (prevSet,foundExactY,postSet) = S.splitMember ny ySet
-                                                                                       prevList@(prevY:_) = trace (show parabolas) $ toDecendingList prevSet
+                                                                                       prevList@(prevY:_) = toDecendingList prevSet
                                                                                        postList@(postY:_) = S.toAscList postSet
                                                                                        (xPy,xMy) = (nx+ny,nx-ny)
                                                                                        nid =  loc2Id |!| (nx,ny)        
@@ -234,11 +238,13 @@ addNewPointLocatedAtTheFrontToBeachFront loc2Id (beachFront,graphEdges) (nx,ny) 
                                                                                    
 addNode::(Integral a,Ord a,Integral b)=>M.Map (Ratio a,Ratio a) b->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])
        ->(Ratio a,Ratio a)->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])
+addNode locsToId _ np | trace ("adding "++(show (locsToId|!|np))++"\n") False = undefined
 addNode _ ((f,_),_) np | (if M.valid f then False else error ("input front not valid"++show np++"\n map : "++show f)) = undefined
 addNode locsToId (beachFront@(f0,_),graphEdges) newPoint@(x,_) = let (newBeachFront@(f,_),ge') = if (M.valid f0) 
                                                                                                  then advanceSweepLineTo locsToId (beachFront,graphEdges) x 
-                                                                                                 else error ("tree not valid -1"++show f0)
-                                                                     retval@((f',_),_) = if (M.valid f) 
+                                                                                                 else error ("tree not valid -1"++(show f0))
+                                                                     retval@((f',_),_) = trace "reached here" $
+                                                                                         if (M.valid f) 
                                                                                          then addNewPointLocatedAtTheFrontToBeachFront locsToId 
                                                                                                   (newBeachFront,ge') newPoint
                                                                                          else error ("tree not valid 000000 \n" 
@@ -246,15 +252,16 @@ addNode locsToId (beachFront@(f0,_),graphEdges) newPoint@(x,_) = let (newBeachFr
                                                                                                      ++ "\n newPoint : "++show newPoint++"\n"
                                                                                                      ++ (plotAsString (L.sort (M.elems f)) (fromIntegral ((L.length (M.elems f))-1),0%1)) ++" \n new : "
                                                                                                      ++ (show f) ++ "\nold : "++(show f0) ++"\n np : "++show newPoint)
-                                                                 in if (M.valid f') then retval else error ("tree not valid 1111 " ++ (show f'))
+                                                                 in trace "reached here too" $ if (M.valid f') 
+                                                                                               then retval 
+                                                                                               else error ("tree not valid 1111 " ++ (show f'))
              
 vornoiGraph::(Integral a,Ord a,Integral b)=>[(Ratio a,Ratio a)]->[(b,b)]
 vornoiGraph locs = let locsToId = M.fromList (zip locs [0..])
                        idToLocs = M.fromList (zip [0..] locs)
                        ((_,y0),(_,y1)) = boundingBox locs 
                        xSortedLocs@(fp@(xmin,_):_) = L.sort locs
-                       startingBeachFront' = (M.insert (y0,y1) fp M.empty,xmin)
-                       startingBeachFront = trace ("sbf : "++(show startingBeachFront')++"\n") startingBeachFront'
+                       startingBeachFront = (M.insert (y0,y1) fp M.empty,xmin)
                        (beachFront,graphEdges) = L.foldl' (addNode locsToId) (startingBeachFront,[]) (drop 1 xSortedLocs)
                    in  graphEdges
 
