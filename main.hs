@@ -73,14 +73,20 @@ isDistinctAscList (x1:x2:xs) = if x1<x2  then isDistinctAscList (x2:xs) else err
 isDistinctAscList _ = True
 
 expandToAdvance::(Integral a,Ord a)=>((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a)->Ratio a->((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a)
-expandToAdvance w@(_,s) s' | s==s' = trace "short circuiting expandToAdvance\n" w
-expandToAdvance (rangeToOpenTrapeziaMap,s) s' = let lst = mconvert $ M.toAscList (if M.valid rangeToOpenTrapeziaMap then rangeToOpenTrapeziaMap else error "invalide input map")
-                                                    lst' = map (\x->newYLocation x s') lst  
-                                                    y' = if (isDistinctAscList lst') 
-                                                         then M.fromDistinctAscList lst' 
-                                                         else error ("function not monotonic\n orig"++show lst++"\nmapped : "++show lst')
-                                                in (M.mapKeysMonotonic (\(y1,y2) ->let [v1,v2] = map (y'|!|) [y1,y2]
-                                                                                   in (v1,v2)) rangeToOpenTrapeziaMap,s')
+expandToAdvance a b | trace ("----------------expandToAdvance----------------------\n"++(show (a,b))++"\n") False = undefined
+expandToAdvance a b = trace ("---------------- entering expandToAdvance--------------------\n (bf-ge,s) : "++ (show (a,b)) ++ "\n ret : "++(show ret)
+                                                                                                               ++"\n----------leaving expandToAdvance---------") ret
+    where ret = expandToAdvance' a b 
+
+
+expandToAdvance' w@(_,s) s' | s==s' = trace "short circuiting expandToAdvance\n" w
+expandToAdvance' (rangeToOpenTrapeziaMap,s) s' = let lst = mconvert $ M.toAscList (if M.valid rangeToOpenTrapeziaMap then rangeToOpenTrapeziaMap else error "invalide input map")
+                                                     lst' = map (\x->newYLocation x s') lst  
+                                                     y' = if (isDistinctAscList lst') 
+                                                          then M.fromDistinctAscList lst' 
+                                                          else error ("function not monotonic\n orig"++show lst++"\nmapped : "++show lst')
+                                                 in (M.mapKeysMonotonic (\(y1,y2) ->let [v1,v2] = map (y'|!|) [y1,y2]
+                                                                                    in (v1,v2)) rangeToOpenTrapeziaMap,s')
 
 deleteOutOfRangeTrapezia::(Num a,Ord a)=>(M.Map (a,a) (a,a))->(a,a)->(M.Map (a,a) (a,a))
 deleteOutOfRangeTrapezia originalTrapeziaMap trimRange@(ymin,ymax) 
@@ -108,7 +114,7 @@ removeDisappearingValleys _ w@((_,sOld),_) s
     | sOld==s = trace "short-circuiting \n" w                                                                                                                         
 removeDisappearingValleys loc2Id ((trapMap,sOld),graphedges) s  =
         let kVList = M.toAscList trapMap
-            (revRet,decs,flat,ge') =  L.foldl' h ([],[],[],graphedges) kVList
+            (revRet,decs,flat,ge') =  trace ("kVList : "++(show kVList)) $ L.foldl' h ([],[],[],graphedges) kVList
               where 
                h a b = trace ("------------------start---------------------\n"
                               ++" s : "++(show s)++"\n before : revRet,decs,flat,ge : \n"
