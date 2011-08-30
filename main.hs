@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -O2 -fspec-constr-count=6#-}
+--{-# OPTIONS_GHC -O2 -fspec-constr-count=6 #-}
 
 module Main where
 import qualified Data.List as L
@@ -101,14 +101,18 @@ removeDisappearingValleys::(Integral a,Ord a,Integral b)=>
                            (M.Map (Ratio a,Ratio a) b)->
                            (((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])->Ratio a->
                            (((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])
-removeDisappearingValleys loc2Id ((trapMap,sOld),graphedges) s = 
-    let kVList = M.toAscList trapMap
-        (kVlistAfterRemovingDissappearingValleys,_,_,ge') =  L.foldl' f ([],[],[],graphedges) kVList
-            where 
-              f (revRet,[],flat@(flatF@(_,(x0,_)):[]),ge) newVal@(_,(x2,y2)) 
+removeDisappearingValleys loc2Id ((trapMap,sOld),graphedges) s  
+    | trace ("loc2Id : "++(show loc2Id)++"\n trapMap : "++(show trapMap)++"\n graphEdges : "++(show graphedges)++"\n (sold,s) : "++(show (sOld,s))++"\n") False = undefined
+    | otherwise = 
+        let kVList = M.toAscList trapMap
+            (revRet,decs,flat,ge') =  L.foldl' g ([],[],[],graphedges) kVList
+              where 
+               g a b = trace (" s : "++(show s)++"\n before : revRet,decs,flat,ge : \n"++(show a)++"\n newVal : "++(show b)++"\n") $ trace ("after : "++(show ret)++"\n") ret 
+                          where ret = f a b
+               f (revRet,[],flat@(flatF@(_,(x0,_)):[]),ge) newVal@(_,(x2,y2)) 
                   | x0<=x2 = ((flatF:revRet),[],[newVal],ge)
                   | x0>x2 = (revRet,flat,[newVal],ge)   
-              f (revRet,decs@(decsF@(_,decLoc@(x1,y1)):decsR),flat@((_,(x0,_)):_),ge) newVal@(_,incLoc@(x2,y2)) 
+               f (revRet,decs@(decsF@(_,decLoc@(x1,y1)):decsR),flat@((_,(x0,_)):_),ge) newVal@(_,incLoc@(x2,y2)) 
                   | (x0==x1) = f (revRet,decsR,decsF:flat,ge) newVal
                   | (x0==x2) = (revRet,decs,newVal:flat,ge)
                   | (x0>x2) = (revRet,flat++decs,[newVal],ge)
@@ -116,13 +120,13 @@ removeDisappearingValleys loc2Id ((trapMap,sOld),graphedges) s =
                   | otherwise = let decId = loc2Id|!|decLoc
                                     incId = loc2Id|!|incLoc
                                 in f (revRet,decsR,[decsF],(decId,incId):ge) newVal
-              f (revRet,decs,[],ge) nv = (revRet,decs,[nv],ge)                     
-              f (revRet,decs,flat,ge) nv = error ("no match found for \n revRet : "++(show revRet)++" \n decs : "++(show decs)
-                                                 ++"\n flat : "++ (show flat)++"\n ge : "++(show ge)++"\n")
-        newTrapMap = M.fromDistinctAscList $ reverse kVlistAfterRemovingDissappearingValleys
-    in ((newTrapMap,sOld),ge')
-                                                                        
-
+               f (revRet,decs,[],ge) nv = (revRet,decs,[nv],ge)                     
+               f (revRet,decs,flat,ge) nv = error ("no match found for \n revRet : "++(show revRet)++" \n decs : "++(show decs)
+                                                      ++"\n flat : "++ (show flat)++"\n ge : "++(show ge)++"\n")
+            kVlistAfterRemovingDissappearingValleys =  flat++decs++revRet
+            newTrapMap = M.fromDistinctAscList $ reverse kVlistAfterRemovingDissappearingValleys
+        in ((newTrapMap,sOld),ge')
+                                                                       
 
 advanceSweepLineTo::(Integral a,Ord a,Integral b)=>
                     (M.Map (Ratio a,Ratio a) b)->
@@ -130,7 +134,8 @@ advanceSweepLineTo::(Integral a,Ord a,Integral b)=>
                     (((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])
 advanceSweepLineTo loc2Id (front@(rangeToOpenTrapeziaMap,curSweepLineLocation),ge) newSweepLineLocation = 
     let delta = newSweepLineLocation - curSweepLineLocation
-        (newFront,ge')= removeDisappearingValleys loc2Id (front,ge) newSweepLineLocation
+        tmp = trace (" oldfront : "++(show (front,ge))++"\n") $ removeDisappearingValleys loc2Id (front,ge) newSweepLineLocation
+        (newFront,ge') = trace (" newfront : "++(show tmp)++"\n") tmp                 
         (expandedTrapezia,_) = expandToAdvance newFront newSweepLineLocation
         ((ymin,_),_) = M.findMin rangeToOpenTrapeziaMap
         ((_,ymax),_) = M.findMax rangeToOpenTrapeziaMap
@@ -161,20 +166,23 @@ revPairPartition xs = reverse $ revPairPartitionHelper [] xs
 (|!|)::(Ord k,Show k,Show v)=>M.Map k v->k->v
 m |!| k = case M.lookup k m of
             Just v -> v
-            Nothing -> error ("\n--------\n map : "++show m++"\n k : "++show k++"\n isValid : "++ (show $ M.valid m))
+            Nothing -> error ("\n--------key not found-----\n map : "++show m++"\n k : "++show k++"\n isValid : "++ (show $ M.valid m))
 
 addNewPointLocatedAtTheFrontToBeachFront::(Show a,Show b,Integral a)=>M.Map (Ratio a,Ratio a) b->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])->                
                                           (Ratio a,Ratio a)->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])
+addNewPointLocatedAtTheFrontToBeachFront a b c
+    | trace ("loc2Id : "++(show a)++"\n bf-ge : "++(show b)++"\n np : "++(show c)++"\n") False = undefined
+addNewPointLocatedAtTheFrontToBeachFront loc2Id ((parabolas,_),_) np
+    | (M.null parabolas) = error "should not have come here!"
 addNewPointLocatedAtTheFrontToBeachFront loc2Id (beachFront,graphEdges) (nx,ny) = (let flatten xs = L.foldl' (\cur (x1,x2) -> x1:x2:cur) [] (reverse xs)
                                                                                        (parabolas,frontLoc) = beachFront
                                                                                        toDecendingList = reverse . S.toAscList 
                                                                                        ySet = S.fromAscList $ flatten $ M.keys parabolas
                                                                                        (prevSet,foundExactY,postSet) = S.splitMember ny ySet
-                                                                                       prevList@(prevY:_) = toDecendingList prevSet
+                                                                                       prevList@(prevY:_) = trace (show parabolas) $ toDecendingList prevSet
                                                                                        postList@(postY:_) = S.toAscList postSet
                                                                                        (xPy,xMy) = (nx+ny,nx-ny)
-                                                                                       nid' =  loc2Id |!| (nx,ny)        
-                                                                                       nid =  nid'
+                                                                                       nid =  loc2Id |!| (nx,ny)        
                                                                                        pairsToBeDeletedOrModified = if foundExactY 
                                                                                                                     then ((takeWhile (\w@(_,y2)->
                                                                                                                                       let x2 = findParabolaX 
@@ -245,7 +253,9 @@ vornoiGraph locs = let locsToId = M.fromList (zip locs [0..])
                        idToLocs = M.fromList (zip [0..] locs)
                        ((_,y0),(_,y1)) = boundingBox locs 
                        xSortedLocs@(fp@(xmin,_):_) = L.sort locs
-                       (beachFront,graphEdges) = L.foldl' (addNode locsToId) ((M.insert (y0,y1) fp M.empty,xmin),[]) (drop 1 xSortedLocs)
+                       startingBeachFront' = (M.insert (y0,y1) fp M.empty,xmin)
+                       startingBeachFront = trace ("sbf : "++(show startingBeachFront')++"\n") startingBeachFront'
+                       (beachFront,graphEdges) = L.foldl' (addNode locsToId) (startingBeachFront,[]) (drop 1 xSortedLocs)
                    in  graphEdges
 
 plotAsString::(Integral a)=>[(Ratio a,Ratio a)]->(a,Ratio a)->String
