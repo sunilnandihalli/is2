@@ -73,6 +73,7 @@ isDistinctAscList (x1:x2:xs) = if x1<x2  then isDistinctAscList (x2:xs) else err
 isDistinctAscList _ = True
 
 expandToAdvance::(Integral a,Ord a)=>((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a)->Ratio a->((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a)
+expandToAdvance w@(_,s) s' | s==s' = trace "short circuiting expandToAdvance\n" w
 expandToAdvance (rangeToOpenTrapeziaMap,s) s' = let lst = mconvert $ M.toAscList (if M.valid rangeToOpenTrapeziaMap then rangeToOpenTrapeziaMap else error "invalide input map")
                                                     lst' = map (\x->newYLocation x s') lst  
                                                     y' = if (isDistinctAscList lst') 
@@ -104,16 +105,16 @@ removeDisappearingValleys::(Integral a,Ord a,Integral b)=>
 removeDisappearingValleys _ ((_,sOld),graphedges) s 
     | trace ("entering removeDisappearingValleys for (sOld,s) : "++(show (sOld,s))++" ge : "++(show graphedges)) False = undefined
 removeDisappearingValleys _ w@((_,sOld),_) s 
-    | sOld==s = w                                                                                                                         
+    | sOld==s = trace "short-circuiting \n" w                                                                                                                         
 removeDisappearingValleys loc2Id ((trapMap,sOld),graphedges) s  =
         let kVList = M.toAscList trapMap
             (revRet,decs,flat,ge') =  L.foldl' h ([],[],[],graphedges) kVList
               where 
-               h a b = trace ("---------------------------------------\n"
+               h a b = trace ("------------------start---------------------\n"
                               ++" s : "++(show s)++"\n before : revRet,decs,flat,ge : \n"
-                                    ++(show a)++"\n newVal : "++(show b)++"\n") $ trace ("after : "++(show ret)++"\n") ret 
+                                    ++(show a)++"\n newVal : "++(show b)++"\n") $ trace ("after : "++(show ret)++"\n----------------------end-------------------\n") ret 
                           where ret = g a b
-               g a b = trace ("(a,b) : "++(show (a,b))) $ f a b
+               g a b = trace ("------>(a,b) : "++(show (a,b))) $ f a b
                f (revRet,[],flat@(flatF@(_,(x0,_)):[]),ge) newVal@(_,(x2,y2)) 
                   | x0<=x2 = ((flatF:revRet),[],[newVal],ge)
                   | x0>x2 = (revRet,flat,[newVal],ge)   
