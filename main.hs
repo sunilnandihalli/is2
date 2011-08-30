@@ -69,6 +69,7 @@ newYLocation (y,Just (x1,y1),Nothing) s = (y,y+s)
 newYLocation (y,(Just p1),(Just p2)) s = (y,snd $ intersectParabolas p1 p2 s)
 
 isDistinctAscList::(Ord a,Eq a,Show a)=>[a]->Bool
+isDistinctAscList x | trace ("----entered isDistinctAscList--------\n"++(show x)) False = undefined
 isDistinctAscList (x1:x2:xs) = if x1<x2  then isDistinctAscList (x2:xs) else error ("loc : "++(show (x1,x2)))
 isDistinctAscList _ = True
 
