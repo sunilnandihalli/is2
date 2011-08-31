@@ -5,6 +5,7 @@ import qualified Data.List as L
 import qualified Data.HashTable as H
 import qualified Data.Map as M
 import qualified Data.Set as S
+import qualified Control.Exception as E
 import Debug.Trace
 import Data.Ratio
 
@@ -41,9 +42,13 @@ getEdge::(Integral a,Ord a,Integral b)=>M.Map (Ratio a,Ratio a) b->(Ratio a,Rati
 getEdge locsToId p1 p2 = (locsToId|!|p1,locsToId|!|p2)
 
 intersectParabolas::(Integral a,Ord a)=>(Ratio a,Ratio a)->(Ratio a,Ratio a)->Ratio a->(Ratio a,Ratio a)
-intersectParabolas p1@(x1,y1) p2@(x2,y2) s
+intersectParabolas p1 p2 s 
+    | trace ("----------entering intersectParabolas : "++(show (p1,p2,s))++"---------------\n") True = trace ((show ret)++"\n------------leaving intersectParabolas-------\n") ret
+    where ret = intersectParabolas' p1 p2 s
+
+intersectParabolas' p1@(x1,y1) p2@(x2,y2) s
     | x1 > x2 = intersectParabolas' p2 p1 s
-    | dy >= hsx = (s-dy, yav)
+    | dy >= hsx = (s-dy,yav)
     | x1 == x2 = (sxav,yav)
     | y1 < y2 = (sxav,y2-hsx)
     | y1 > y2 = (sxav,y2+hsx)
@@ -52,13 +57,12 @@ intersectParabolas p1@(x1,y1) p2@(x2,y2) s
         yav = (y1+y2) / 2
         sxav = (s+x1) / 2
         hsx = (s-x1) / 2
-
-intersectParabolas'::(Integral a,Ord a)=>(Ratio a,Ratio a)->(Ratio a,Ratio a)->Ratio a->(Ratio a,Ratio a) 
-intersectParabolas' p1 p2 s = let (x,y) = intersectParabolas' p1 p2 s
-                             in trace ("(x,y) : "++show (x,y)++" p1 : "++show p1++" p2 : "++show p2++" s : "++show s) (x,y)
             
-mconvert::[((a,a),(a,a))]->[(a,Maybe (a,a),Maybe (a,a))]
-mconvert listOfRangeValPairs = reverse $ helper [] Nothing listOfRangeValPairs
+mconvert::(Show a)=>[((a,a),(a,a))]->[(a,Maybe (a,a),Maybe (a,a))]
+mconvert xs | trace ("mconvert : "++(show xs)++"\n") True = trace ("mconvert ret : "++(show ret)++"\n") ret 
+            where ret = mconvert' xs
+
+mconvert' listOfRangeValPairs = reverse $ helper [] Nothing listOfRangeValPairs
  where helper acc _ [] = acc
        helper acc prev (((y1,y2),v):[]) = (y2,Just v,Nothing):(y1,prev,Just v):acc
        helper acc prev (((y1,y2),v):restOfRanges) = helper ((y1,prev,Just v):acc) (Just v) restOfRanges                                               
@@ -80,12 +84,21 @@ expandToAdvance a b = trace ("---------------- entering expandToAdvance---------
     where ret = expandToAdvance' a b 
 
 
+validTrapeziaMap::(Integral a,Ord a)=>M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)->Bool
+validTrapeziaMap m = isValid $ M.keys m
+                     where isValid ((_,y1):rst@((y2,_):_)) = if (y1/=y2) 
+                                                             then False 
+                                                             else isValid rst
+                           isValid _ = True                                     
+                     
+
 expandToAdvance' w@(_,s) s' | s==s' = trace "short circuiting expandToAdvance\n" w
-expandToAdvance' (rangeToOpenTrapeziaMap,s) s' = let lst = mconvert $ M.toAscList (if M.valid rangeToOpenTrapeziaMap then rangeToOpenTrapeziaMap else error "invalide input map")
-                                                     lst' = map (\x->newYLocation x s') lst  
-                                                     y' = if (isDistinctAscList lst') 
-                                                          then M.fromDistinctAscList lst' 
-                                                          else error ("function not monotonic\n orig"++show lst++"\nmapped : "++show lst')
+expandToAdvance' (rangeToOpenTrapeziaMap,s) s' = E.assert (validTrapeziaMap rangeToOpenTrapeziaMap) $
+                                                 let lst = mconvert $ M.toAscList (if M.valid rangeToOpenTrapeziaMap then rangeToOpenTrapeziaMap else error "invalide input map")
+                                                     lst' = trace (" lst : "++(show lst)++"\n trpMap : "++(show rangeToOpenTrapeziaMap)++"\n") $ map (\x->newYLocation x s') lst  
+                                                     y' = trace (" lst' : "++(show lst')) $ if (isDistinctAscList lst') 
+                                                                                            then M.fromDistinctAscList lst' 
+                                                                                            else error ("function not monotonic\n orig"++(show lst)++"\nmapped : "++(show lst'))
                                                  in (M.mapKeysMonotonic (\(y1,y2) ->let [v1,v2] = map (y'|!|) [y1,y2]
                                                                                     in (v1,v2)) rangeToOpenTrapeziaMap,s')
 
@@ -136,8 +149,12 @@ removeDisappearingValleys loc2Id ((trapMap,sOld),graphedges) s  =
                f (revRet,decs,[],ge) nv = (revRet,decs,[nv],ge)                     
                f (revRet,decs,flat,ge) nv = error ("no match found for \n revRet : "++(show revRet)++" \n decs : "++(show decs)
                                                       ++"\n flat : "++ (show flat)++"\n ge : "++(show ge)++"\n")
-            kVlistAfterRemovingDissappearingValleys =  flat++decs++revRet
-            newTrapMap = M.fromDistinctAscList $ reverse kVlistAfterRemovingDissappearingValleys
+            fst:rst = flat++decs++revRet
+            kVlistAfterRemovingDissappearingValleys = L.foldl' (\res@(((y2,y3),p2):rres) inp@((y0,y1),p1) -> if y1==y2 
+                                                                                                             then inp:res
+                                                                                                             else let (_,y) = intersectParabolas p1 p2 sOld
+                                                                                                                  in ((y0,y),p1):((y,y3),p2):rres) [fst] rst
+            newTrapMap = M.fromDistinctAscList kVlistAfterRemovingDissappearingValleys
         in ((newTrapMap,sOld),ge')
                                                                        
 
@@ -178,7 +195,7 @@ revPairPartition xs = reverse $ revPairPartitionHelper [] xs
 (|!|)::(Ord k,Show k,Show v)=>M.Map k v->k->v
 m |!| k = case M.lookup k m of
             Just v -> v
-            Nothing -> error ("\n--------key not found-----\n map : "++show m++"\n k : "++show k++"\n isValid : "++ (show $ M.valid m))
+            Nothing -> error ("\n--------key not found-----\n map : "++show m++"\n k : "++show k++"\n isValid : "++ (show $ M.valid m))  
 
 addNewPointLocatedAtTheFrontToBeachFront::(Show a,Show b,Integral a)=>M.Map (Ratio a,Ratio a) b->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])->                
                                           (Ratio a,Ratio a)->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])
@@ -246,7 +263,7 @@ addNewPointLocatedAtTheFrontToBeachFront loc2Id (beachFront,graphEdges) (nx,ny) 
                                                                                    
 addNode::(Integral a,Ord a,Integral b)=>M.Map (Ratio a,Ratio a) b->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])
        ->(Ratio a,Ratio a)->(((M.Map (Ratio a,Ratio a) (Ratio a,Ratio a)),Ratio a),[(b,b)])
-addNode locsToId _ np | trace ("adding "++(show (locsToId|!|np))++"\n") False = undefined
+addNode locsToId _ np | trace ("locsToId : "++(show locsToId)++"\n adding "++(show (locsToId|!|np))++"\n") False = undefined
 addNode _ ((f,_),_) np | (if M.valid f then False else error ("input front not valid"++show np++"\n map : "++show f)) = undefined
 addNode locsToId (beachFront@(f0,_),graphEdges) newPoint@(x,_) = let (newBeachFront@(f,_),ge') = if (M.valid f0) 
                                                                                                  then advanceSweepLineTo locsToId (beachFront,graphEdges) x 
