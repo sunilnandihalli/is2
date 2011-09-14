@@ -290,15 +290,21 @@ vornoiGraph locs = let locsToId = M.fromList (zip locs [0..])
                        (beachFront,graphEdges) = L.foldl' (addNode locsToId) (startingBeachFront,[]) (drop 1 xSortedLocs)
                    in  graphEdges
 
+constWidth::(Integral a)=>a->String
+constWidth id 
+    | id < 10 = (show id)++" "
+    | id < 100 = (show id)
+    | otherwise = error "cannot show"             
+
 plotAsString::(Integral a)=>[(Ratio a,Ratio a)]->(a,Ratio a)->String
 plotAsString locs (ansPosId,lowestCost) = let ((x0,y0),(x1,y1)) = boundingBox locs
                                               locsmap = M.fromList (zip locs [0..])
                                           in L.foldl' (\curStr newRowId -> 
                                                         L.foldl' (\ccStr newColId -> 
                                                                       ccStr++(case M.lookup (newRowId,newColId) locsmap of
-                                                                                Just id -> if id==ansPosId then "|" ++ (show id) ++ "|"
-                                                                                           else " " ++ (show id) ++ " "
-                                                                                Nothing -> " . "))
+                                                                                Just id -> if id==ansPosId then "|" ++ (constWidth id) ++ "|"
+                                                                                           else " " ++ (constWidth id) ++ " "
+                                                                                Nothing -> " .  "))
                                                         curStr [y0..y1] ++ "\n") ("cost : "++show lowestCost++"\n") [x0..x1] 
                             
 tuplify2 :: [a] -> (a,a)
